@@ -269,8 +269,8 @@ export class GameScene extends Phaser.Scene {
           const heightOffset = Math.floor(h(5) * 60);
           const doorSide = h(6) < 0.5 ? "left" as const : "right" as const;
           const doorInset = 10 + Math.floor(h(7) * 30);
-          const doorTexture = Math.floor(h(8) * 14);
-          const windowTexture = Math.floor(h(9) * 12);
+          const doorTexture = Math.floor(h(8) * 9);
+          const windowTexture = Math.floor(h(9) * 11);
 
           this.buildings.push({
             seed,
@@ -624,8 +624,11 @@ export class GameScene extends Phaser.Scene {
     const dpr = window.devicePixelRatio || 1;
 
     const sections = [
-      { label: "METAL DOOR", prefix: "metal-door", count: 14, targetH: 128 },
-      { label: "WINDOWS", prefix: "window", count: 12, targetH: 96 },
+      { label: "METAL DOOR", prefix: "metal-door", count: 9, targetH: 128 },
+      { label: "NEW DOORS", prefix: "metal-door-new", count: 7, targetH: 128 },
+      { label: "WINDOWS", prefix: "window", count: 11, targetH: 96 },
+      { label: "NEW WINDOWS", prefix: "window-new", count: 5, targetH: 96 },
+      { label: "NEW WIN 2", prefix: "window-new2", count: 9, targetH: 96 },
       { label: "GARBAGE BIN", prefix: "garbage-bin", count: 6, targetH: 64 },
       { label: "VENDING MACH", prefix: "vending-machine", count: 9, targetH: 96 },
       { label: "GARAGE DOOR", prefix: "garage-door", count: 7, targetH: 128 },

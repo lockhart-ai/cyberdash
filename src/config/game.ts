@@ -1,6 +1,7 @@
 import Phaser from "phaser";
 import { BootScene } from "../scenes/BootScene";
-import { GameScene } from "../scenes/GameScene";
+// import { GameScene } from "../scenes/GameScene";
+import { ShowroomScene } from "../scenes/ShowroomScene";
 
 export const gameConfig: Phaser.Types.Core.GameConfig = {
   type: Phaser.AUTO,
@@ -9,7 +10,7 @@ export const gameConfig: Phaser.Types.Core.GameConfig = {
   pixelArt: true,
   roundPixels: true,
   backgroundColor: "#0a0a0a",
-  scene: [BootScene, GameScene],
+  scene: [BootScene, ShowroomScene],
   physics: {
     default: "arcade",
     arcade: {
@@ -18,8 +19,8 @@ export const gameConfig: Phaser.Types.Core.GameConfig = {
     },
   },
   render: {
-    antialias: false,
-    antialiasGL: false,
+    antialias: true,
+    antialiasGL: true,
   },
   parent: "game",
   scale: {

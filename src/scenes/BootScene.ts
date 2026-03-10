@@ -11,12 +11,37 @@ export const DIRECTIONS = [
   "south-east",
 ] as const;
 
+export interface AssetEntry {
+  key: string;
+  path: string;
+  pack: string;
+  sub: string;
+  file: string;
+}
+
+// Loaded synchronously before Phaser boots so we can queue everything in preload()
+let manifest: AssetEntry[] = [];
+
+export function loadManifest(): Promise<void> {
+  return fetch("asset_manifest.json")
+    .then((r) => r.json())
+    .then((data) => {
+      manifest = data;
+      console.log(`[boot] Manifest loaded: ${manifest.length} assets`);
+    });
+}
+
+export function getManifest(): AssetEntry[] {
+  return manifest;
+}
+
 export class BootScene extends Phaser.Scene {
   constructor() {
     super({ key: "BootScene" });
   }
 
   preload() {
+    // Player sprites
     for (const dir of DIRECTIONS) {
       this.load.image(`player-${dir}`, `assets/sprites/player/${dir}.png`);
       this.load.spritesheet(`walk-${dir}`, `assets/sprites/player/walk-${dir}.png`, {
@@ -29,63 +54,38 @@ export class BootScene extends Phaser.Scene {
       });
     }
 
-    // Tiles
-    this.load.image("street", "assets/tilemaps/street_0.png");
-    for (let i = 0; i < 8; i++) {
-      this.load.image(`sidewalk-${i}`, `assets/tilemaps/sidewalk_${i}.png`);
+    // All pack assets from manifest (loaded before Phaser boot)
+    for (const entry of manifest) {
+      this.load.image(entry.key, entry.path);
     }
 
-    // Building features (used in game world)
-    for (let w = 0; w < 12; w++) {
-      this.load.image(`window-${w}`, `assets/sprites/window_${w}.png`);
-    }
-    for (let i = 0; i < 14; i++) {
-      this.load.image(`metal-door-${i}`, `assets/sprites/metal_door_${i}.png`);
-    }
-    for (let i = 0; i < 6; i++) {
-      this.load.image(`garbage-bin-${i}`, `assets/sprites/garbage_bin_${i}.png`);
-    }
-    for (let i = 0; i < 9; i++) {
-      this.load.image(`vending-machine-${i}`, `assets/sprites/vending_machine_${i}.png`);
-    }
-    for (let i = 0; i < 7; i++) {
-      this.load.image(`garage-door-${i}`, `assets/sprites/garage_door_${i}.png`);
-    }
-    for (let i = 0; i < 1; i++) {
-      this.load.image(`elec-box-${i}`, `assets/sprites/elec_box_${i}.png`);
-    }
-    for (let i = 0; i < 3; i++) {
-      this.load.image(`wall-vent-${i}`, `assets/sprites/wall_vent_${i}.png`);
-    }
+    console.log(`[boot] Queued ${manifest.length} pack assets for loading`);
 
-    // Street props (only used variants)
-    this.load.image("traffic-light-2", "assets/sprites/traffic_light_2.png");
-    this.load.image("sewer-grate-4", "assets/sprites/sewer_grate_4.png");
-    this.load.image("steam-vent-0", "assets/sprites/steam_vent_0.png");
+    // Loading progress bar
+    const w = this.cameras.main.width;
+    const h = this.cameras.main.height;
+    const barW = 300, barH = 20;
+    const barX = (w - barW) / 2, barY = h / 2;
 
-    // Neon signs
-    for (let i = 0; i < 10; i++) {
-      this.load.image(`neon-noodle-sign-${i}`, `assets/sprites/neon_noodle_sign_${i}.png`);
-    }
-    for (let i = 0; i < 10; i++) {
-      this.load.image(`neon-dragon-sign-${i}`, `assets/sprites/neon_dragon_sign_${i}.png`);
-    }
+    const bg = this.add.graphics();
+    bg.fillStyle(0x222233, 1);
+    bg.fillRect(barX, barY, barW, barH);
 
-    // Cars
-    for (let i = 0; i < 10; i++) {
-      this.load.image(`car-${i}`, `assets/sprites/car_${i}.png`);
-    }
+    const bar = this.add.graphics();
+    const label = this.add.text(w / 2, barY - 20, "Loading assets...", {
+      fontSize: "14px", fontFamily: "monospace", color: "#00ffcc",
+    }).setOrigin(0.5, 1);
 
-    // Building wall textures
-    for (let v = 0; v < 6; v++) {
-      for (const s of [2, 3, 4]) {
-        this.load.image(`wall-left-v${v}-${s}s`, `assets/tilemaps/wall_left_v${v}_${s}s.png`);
-        this.load.image(`wall-right-v${v}-${s}s`, `assets/tilemaps/wall_right_v${v}_${s}s.png`);
-      }
-    }
+    this.load.on("progress", (value: number) => {
+      bar.clear();
+      bar.fillStyle(0x00ffcc, 1);
+      bar.fillRect(barX, barY, barW * value, barH);
+      label.setText(`Loading assets... ${Math.floor(value * 100)}%`);
+    });
   }
 
   create() {
+    // Player animations
     for (const dir of DIRECTIONS) {
       this.anims.create({
         key: `walk-${dir}`,
@@ -102,6 +102,6 @@ export class BootScene extends Phaser.Scene {
       });
     }
 
-    this.scene.start("GameScene");
+    this.scene.start("ShowroomScene");
   }
 }
