@@ -27,6 +27,7 @@ export class GameScene extends Phaser.Scene {
     objects: Phaser.GameObjects.GameObject[];
     footprint: Phaser.GameObjects.Graphics;
   }[] = [];
+  private walls!: Phaser.Physics.Arcade.StaticGroup;
   private fpsEl!: HTMLElement | null;
   private neonTexts: Phaser.GameObjects.Image[] = [];
 
@@ -49,11 +50,11 @@ export class GameScene extends Phaser.Scene {
   }
 
   create() {
+    this.walls = this.physics.add.staticGroup();
     this.cityMap = this.generateCityMap();
     this.drawCityMap();
 
     // Building collision bodies — perimeter only (interior unreachable)
-    const walls = this.physics.add.staticGroup();
     for (let row = 0; row < this.mapRows; row++) {
       for (let col = 0; col < this.mapCols; col++) {
         if (this.cityMap[row][col] === TileType.BUILDING) {
@@ -66,7 +67,7 @@ export class GameScene extends Phaser.Scene {
           const { x, y } = isoToScreen(col, row);
           const zone = this.add.zone(x, y, TILE_W * 0.45, TILE_H * 0.45);
           this.physics.add.existing(zone, true);
-          walls.add(zone);
+          this.walls.add(zone);
         }
       }
     }
@@ -84,7 +85,7 @@ export class GameScene extends Phaser.Scene {
     playerBody.setSize(16, 8);
     playerBody.setOffset(16, 36);
 
-    this.physics.add.collider(this.player, walls);
+    this.physics.add.collider(this.player, this.walls);
 
     // Camera
     this.cameras.main.setZoom(0.5);
@@ -406,7 +407,24 @@ export class GameScene extends Phaser.Scene {
           const img = this.add.image(pos.x, pos.y, texKey);
           img.setOrigin(0.5, 1).setScale(scale).setDepth(parkCol + parkRow + 0.4);
 
-
+          // Collision: zones along car's visual footprint
+          // Car sprites are asymmetric — visual center is offset from anchor.
+          // Shift zones along -row direction (screen right+up) to match.
+          const renderedW = frame.width * scale;
+          const renderedH = frame.height * scale;
+          const cx = pos.x + renderedW * 0.1;  // slight right offset
+          const cy = pos.y - renderedH * 0.5;  // vertical center of car
+          for (let t = -2; t <= 2; t++) {
+            // Step along slope -0.5 (the car's iso axis)
+            const step = renderedW / 5;
+            const zx = cx + t * step;
+            const zy = cy - t * step * 0.5;
+            const zw = step * 1.1, zh = renderedH * 0.7;
+            const southPad = renderedH * 0.4;
+            const zone = this.add.zone(zx, zy + southPad / 2, zw, zh + southPad);
+            this.physics.add.existing(zone, true);
+            this.walls.add(zone);
+          }
         }
 
         // Also park along row-axis streets (horizontal, running NE-SW).
@@ -434,6 +452,21 @@ export class GameScene extends Phaser.Scene {
           const img = this.add.image(pos.x, pos.y, texKey);
           img.setOrigin(0.5, 1).setScale(scale).setFlipX(true).setDepth(hParkCol + hParkRow + 0.4);
 
+          const hRenderedW = frame.width * scale;
+          const hRenderedH = frame.height * scale;
+          const hcx = pos.x - hRenderedW * 0.1;
+          const hcy = pos.y - hRenderedH * 0.5;
+          for (let t = -2; t <= 2; t++) {
+            const step = hRenderedW / 5;
+            // Flipped cars: slope is +0.5
+            const zx = hcx + t * step;
+            const zy = hcy + t * step * 0.5;
+            const zw = step * 1.1, zh = hRenderedH * 0.7;
+            const southPad = hRenderedH * 0.4;
+            const zone = this.add.zone(zx, zy + southPad / 2, zw, zh + southPad);
+            this.physics.add.existing(zone, true);
+            this.walls.add(zone);
+          }
         }
       }
     }
