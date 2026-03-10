@@ -2,7 +2,7 @@ import Phaser from "phaser";
 import { TILE_W, TILE_H, isoToScreen, screenToIso } from "../iso/IsoGeometry";
 import { COL_PERIOD, ROW_PERIOD, STREET_WIDTH, SIDEWALK_WIDTH, BLOCK_INTERIOR, TileType, CURB_HEIGHT } from "../iso/CityLayout";
 import { Building, BUILDING_PALETTE } from "../rendering/BuildingTypes";
-import { renderBuilding, dumpBuildingMetrics } from "../rendering/BuildingRenderer";
+import { renderBuilding, renderBuildingFootprint, dumpBuildingMetrics } from "../rendering/BuildingRenderer";
 import { renderStreetTile, renderSidewalkTile } from "../rendering/StreetRenderer";
 
 type Direction =
@@ -25,6 +25,7 @@ export class GameScene extends Phaser.Scene {
   private buildingObjects: {
     data: Building;
     objects: Phaser.GameObjects.GameObject[];
+    footprint: Phaser.GameObjects.Graphics;
   }[] = [];
   private fpsEl!: HTMLElement | null;
   private neonTexts: Phaser.GameObjects.Image[] = [];
@@ -170,6 +171,7 @@ export class GameScene extends Phaser.Scene {
       for (const obj of entry.objects) {
         (obj as Phaser.GameObjects.Graphics).setVisible(!hide);
       }
+      entry.footprint.setVisible(hide);
     }
 
     const t = 0.5 + 0.5 * Math.sin(this.time.now * Math.PI / 2000);
@@ -351,7 +353,8 @@ export class GameScene extends Phaser.Scene {
     // Render buildings as 3-shape parallelograms
     for (const building of this.buildings) {
       const objects = renderBuilding(this, building);
-      this.buildingObjects.push({ data: building, objects });
+      const footprint = renderBuildingFootprint(this, building);
+      this.buildingObjects.push({ data: building, objects, footprint });
       for (const obj of objects) {
         if ((obj as any).isNeonText) this.neonTexts.push(obj as Phaser.GameObjects.Image);
       }
@@ -360,10 +363,80 @@ export class GameScene extends Phaser.Scene {
     // Diagnostic: dump building/window/door metrics to console
     dumpBuildingMetrics(this, this.buildings);
 
+    this.placeParkedCars();
     this.placeTrafficLights();
     this.placeSewerGrates();
     this.placeSteamVents();
     this.drawShowroom();
+  }
+
+  private placeParkedCars() {
+    const NUM_CARS = 10;
+    const CAR_H = 128; // rendered height
+    const numBlockCols = Math.floor(this.mapCols / COL_PERIOD);
+    const numBlockRows = Math.floor(this.mapRows / ROW_PERIOD);
+
+    // Park cars along col-axis streets (vertical streets running NW-SE).
+    // Lane 1 = near-side parking (next to SW sidewalk), lane 6 = far-side.
+    // Cars are SE-facing assets, so they align with col-axis naturally.
+    for (let bRow = 0; bRow < numBlockRows; bRow++) {
+      for (let bCol = 0; bCol < numBlockCols; bCol++) {
+        const streetColStart = bCol * COL_PERIOD;
+        const streetRowStart = bRow * ROW_PERIOD + STREET_WIDTH; // skip intersection
+        const streetRowEnd = (bRow + 1) * ROW_PERIOD - 1;
+
+        // Decide how many cars on this block segment (0-3)
+        const parkCol = streetColStart + 2; // NW side, two tiles from curb
+
+        const segLen = streetRowEnd - streetRowStart - 4;
+        const minGap = 12; // minimum tiles between cars
+        const maxCars = Math.max(1, Math.floor(segLen / minGap));
+        const segHash = this.hash(bCol, bRow, 300);
+        const numCars = Math.min(maxCars, 2 + Math.floor(segHash * 4)); // 2-5, capped
+        const spacing = Math.floor(segLen / (numCars + 1));
+        for (let c = 0; c < numCars; c++) {
+          const parkRow = streetRowStart + 2 + spacing * (c + 1);
+          const carIdx = Math.floor(this.hash(bCol * 10 + c, bRow, 320) * NUM_CARS);
+          const texKey = `car-${carIdx}`;
+          const frame = this.textures.getFrame(texKey);
+          if (!frame) continue;
+
+          const scale = CAR_H / frame.height;
+          const pos = isoToScreen(parkCol, parkRow);
+          const img = this.add.image(pos.x, pos.y, texKey);
+          img.setOrigin(0.5, 1).setScale(scale).setDepth(parkCol + parkRow + 0.4);
+
+
+        }
+
+        // Also park along row-axis streets (horizontal, running NE-SW).
+        // These need flipX since the street runs the other direction.
+        const hStreetRowStart2 = bRow * ROW_PERIOD;
+        const hStreetColStart2 = bCol * COL_PERIOD + STREET_WIDTH;
+        const hStreetColEnd2 = (bCol + 1) * COL_PERIOD - 1;
+
+        const hParkRow = hStreetRowStart2 + 2; // NW side, two tiles from curb
+
+        const hSegLen = hStreetColEnd2 - hStreetColStart2 - 4;
+        const hMaxCars = Math.max(1, Math.floor(hSegLen / minGap));
+        const hSegHash = this.hash(bCol, bRow, 330);
+        const hNumCars = Math.min(hMaxCars, 2 + Math.floor(hSegHash * 4));
+        const hSpacing = Math.floor(hSegLen / (hNumCars + 1));
+        for (let c = 0; c < hNumCars; c++) {
+          const hParkCol = hStreetColStart2 + 2 + hSpacing * (c + 1);
+          const carIdx = Math.floor(this.hash(bCol, bRow * 10 + c, 350) * NUM_CARS);
+          const texKey = `car-${carIdx}`;
+          const frame = this.textures.getFrame(texKey);
+          if (!frame) continue;
+
+          const scale = CAR_H / frame.height;
+          const pos = isoToScreen(hParkCol, hParkRow);
+          const img = this.add.image(pos.x, pos.y, texKey);
+          img.setOrigin(0.5, 1).setScale(scale).setFlipX(true).setDepth(hParkCol + hParkRow + 0.4);
+
+        }
+      }
+    }
   }
 
   private placeTrafficLights() {
@@ -533,18 +606,20 @@ export class GameScene extends Phaser.Scene {
       { label: "DUMPSTER", prefix: "dumpster", count: 10, targetH: 96 },
       { label: "NEON NOODLE", prefix: "neon-noodle-sign", count: 10, targetH: 96 },
       { label: "NEON DRAGON", prefix: "neon-dragon-sign", count: 10, targetH: 96 },
+      { label: "CAR", prefix: "car", count: 10, targetH: 160 },
     ];
 
     // Each section gets its own lane — adjacent walls going NW (incrementing col)
     const baseCol = 1;
     const colSpacing = 8;       // columns between each lane
     const rStart = -2;          // start just outside the city edge
-    const slotsPerItem = 3;     // row-tiles per asset slot
+    const baseSlotsPerItem = 3; // row-tiles per asset slot at baseline targetH (96)
     const wallHeight = 200;
 
     for (let lane = 0; lane < sections.length; lane++) {
       const sec = sections[lane];
       const laneCol = baseCol + lane * colSpacing;
+      const slotsPerItem = Math.ceil(baseSlotsPerItem * sec.targetH / 64);
       const rEnd = rStart - sec.count * slotsPerItem; // extend NW (negative rows)
 
       // Wall backdrop for this lane (rEnd < rStart, wall extends NW)

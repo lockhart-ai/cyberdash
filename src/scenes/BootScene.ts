@@ -121,6 +121,10 @@ export class BootScene extends Phaser.Scene {
     for (let i = 0; i < 10; i++) {
       this.load.image(`neon-dragon-sign-${i}`, `assets/sprites/neon_dragon_sign_${i}.png`);
     }
+    // Cars
+    for (let i = 0; i < 10; i++) {
+      this.load.image(`car-${i}`, `assets/sprites/car_${i}.png`);
+    }
     for (let v = 0; v < 6; v++) {
       this.load.image(`bldg-top-v${v}`, `assets/tilemaps/bldg_top_v${v}.png`);
       for (const s of [2, 3, 4]) {

@@ -123,8 +123,10 @@ def check_asset(path: Path, fix: bool, tolerance: float) -> bool:
         issues.append("SW-facing (needs flip)")
         if fix:
             img = img.transpose(Image.FLIP_LEFT_RIGHT)
-            img.save(path)
-            issues[-1] += " -> FIXED"
+            # Write to .fixed.png to avoid corrupting originals
+            fixed_path = path.parent / f"{path.stem}.fixed{path.suffix}"
+            img.save(fixed_path)
+            issues[-1] += f" -> FIXED ({fixed_path.name})"
             result = analyze_iso(img)
 
     # Check slopes: SE wall top/bottom edges should slope at -0.5

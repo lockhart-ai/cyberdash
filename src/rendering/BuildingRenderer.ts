@@ -727,3 +727,31 @@ export function renderBuilding(
   } // end isSWEdge
   return objects;
 }
+
+/**
+ * Render a colored footprint + outline for a building, shown when the building is occluded.
+ * Starts hidden. Caller toggles visibility.
+ */
+export function renderBuildingFootprint(
+  scene: Phaser.Scene,
+  building: Building,
+): Phaser.GameObjects.Graphics {
+  const { N, E, S, W } = buildingCorners(building);
+  const gfx = scene.add.graphics();
+  gfx.setDepth(0.8);
+
+  const pts = [
+    new Phaser.Geom.Point(N.x, N.y),
+    new Phaser.Geom.Point(E.x, E.y),
+    new Phaser.Geom.Point(S.x, S.y),
+    new Phaser.Geom.Point(W.x, W.y),
+  ];
+
+  gfx.fillStyle(building.color.top, 0.4);
+  gfx.fillPoints(pts, true);
+  gfx.lineStyle(1, 0x111111, 1);
+  gfx.strokePoints(pts, true);
+
+  gfx.setVisible(false);
+  return gfx;
+}

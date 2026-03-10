@@ -131,6 +131,7 @@ def main():
     parser.add_argument("--preview", action="store_true", help="Generate side-by-side comparison PNGs")
     parser.add_argument("--preset", type=str, default="cyberdark", choices=PRESETS.keys(), help="Parameter preset (default: cyberdark)")
     parser.add_argument("--fix-facing", action="store_true", help="Auto-detect and flip SW-facing assets to SE")
+    parser.add_argument("--in-place", action="store_true", help="Allow overwriting input files (default: refuse)")
 
     args = parser.parse_args()
 
@@ -177,6 +178,10 @@ def main():
         else:
             out_path = input_path.parent / out_name
 
+        if out_path.resolve() == input_path.resolve() and not args.in_place:
+            print(f"  SKIP {input_path.name} (would overwrite input; use --in-place or -o)")
+            continue
+
         if args.preview:
             preview = make_preview(img, result)
             preview_path = out_path.parent / f"{stem}_preview.png"
@@ -184,7 +189,7 @@ def main():
             print(f"  PREVIEW {input_path.name} → {preview_path.name}")
         else:
             result.save(out_path)
-            print(f"  {'WROTE' if out_path != input_path else 'OVERWROTE'} {out_path}")
+            print(f"  {'OVERWROTE' if out_path.resolve() == input_path.resolve() else 'WROTE'} {out_path}")
 
     print("\nDone.")
 
