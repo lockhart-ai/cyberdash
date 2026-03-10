@@ -98,6 +98,12 @@ export class GameScene extends Phaser.Scene {
 
     this.cursors = this.input.keyboard!.createCursorKeys();
     this.shiftKey = this.input.keyboard!.addKey(Phaser.Input.Keyboard.KeyCodes.SHIFT);
+
+    // Performance diagnostics
+    const totalObjects = this.children.length;
+    const totalBodies = this.physics.world.bodies.entries.length
+      + this.physics.world.staticBodies.entries.length;
+    console.log(`[perf] Game objects: ${totalObjects}, Physics bodies: ${totalBodies}, Buildings: ${this.buildings.length}`);
   }
 
   update() {
@@ -325,7 +331,13 @@ export class GameScene extends Phaser.Scene {
 
     // Batch street tile images into a blitter (single draw call)
     const streetBlitter = this.add.blitter(0, 0, "street").setDepth(0);
+
+    // Batch sidewalk tile images into blitters (one per variant, vs ~9500 individual Images)
     const NUM_SIDEWALK_VARIANTS = 8;
+    const sidewalkBlitters: Phaser.GameObjects.Blitter[] = [];
+    for (let v = 0; v < NUM_SIDEWALK_VARIANTS; v++) {
+      sidewalkBlitters.push(this.add.blitter(0, 0, `sidewalk-${v}`).setDepth(0.6));
+    }
 
     for (let row = 0; row < this.mapRows; row++) {
       for (let col = 0; col < this.mapCols; col++) {
@@ -335,7 +347,7 @@ export class GameScene extends Phaser.Scene {
           // Sidewalk ground under buildings (visible through inset gaps)
           const { x, y } = isoToScreen(col, row);
           const v = Math.floor(this.hash(col, row, 500) * NUM_SIDEWALK_VARIANTS);
-          this.add.image(x, y - CURB_HEIGHT, `sidewalk-${v}`).setDepth(0.6);
+          sidewalkBlitters[v].create(x - TILE_W / 2, y - CURB_HEIGHT - TILE_H / 2);
 
         } else if (tile === TileType.STREET) {
           const { x, y } = isoToScreen(col, row);
@@ -345,7 +357,7 @@ export class GameScene extends Phaser.Scene {
         } else if (tile === TileType.SIDEWALK) {
           const { x, y } = isoToScreen(col, row);
           const v = Math.floor(this.hash(col, row, 500) * NUM_SIDEWALK_VARIANTS);
-          this.add.image(x, y - CURB_HEIGHT, `sidewalk-${v}`).setDepth(0.6);
+          sidewalkBlitters[v].create(x - TILE_W / 2, y - CURB_HEIGHT - TILE_H / 2);
           renderSidewalkTile(this, col, row, sidewalkGfx, sidewalkLines);
         }
       }

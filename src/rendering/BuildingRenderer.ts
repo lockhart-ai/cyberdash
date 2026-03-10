@@ -87,29 +87,27 @@ export function renderBuilding(
   ], true);
   objects.push(roofGfx);
 
-  // --- SE wall fill ---
-  const seWallGfx = scene.add.graphics();
-  seWallGfx.setDepth(building.colEnd + building.rowStart + DEPTH_WALL_FILL);
-  seWallGfx.fillStyle(building.color.right, 1);
-  seWallGfx.fillPoints([
+  // --- SE wall (fill + brick lines merged) ---
+  const seGfx = scene.add.graphics();
+  seGfx.setDepth(building.colEnd + building.rowStart + DEPTH_WALL_FILL);
+  seGfx.fillStyle(building.color.right, 1);
+  seGfx.fillPoints([
     new Phaser.Geom.Point(E.x, E.y),
     new Phaser.Geom.Point(S.x, S.y),
     new Phaser.Geom.Point(Sr.x, Sr.y),
     new Phaser.Geom.Point(Er.x, Er.y),
   ], true);
-  objects.push(seWallGfx);
 
-  // --- SW wall fill ---
-  const swWallGfx = scene.add.graphics();
-  swWallGfx.setDepth(building.colStart + building.rowEnd + DEPTH_WALL_FILL);
-  swWallGfx.fillStyle(building.color.left, 1);
-  swWallGfx.fillPoints([
+  // --- SW wall (fill + brick lines merged) ---
+  const swGfx = scene.add.graphics();
+  swGfx.setDepth(building.colStart + building.rowEnd + DEPTH_WALL_FILL);
+  swGfx.fillStyle(building.color.left, 1);
+  swGfx.fillPoints([
     new Phaser.Geom.Point(S.x, S.y),
     new Phaser.Geom.Point(W.x, W.y),
     new Phaser.Geom.Point(Wr.x, Wr.y),
     new Phaser.Geom.Point(Sr.x, Sr.y),
   ], true);
-  objects.push(swWallGfx);
 
   // --- Wall textures ---
   const texStories = Math.max(2, Math.min(4, building.stories));
@@ -141,10 +139,8 @@ export function renderBuilding(
   const seWallScreenLen = E.x - S.x;
   const swWallScreenLen = S.x - W.x;
 
-  // SE wall lines
-  const seBrickGfx = scene.add.graphics();
-  seBrickGfx.setDepth(building.colEnd + building.rowStart + DEPTH_WALL_FILL + 0.05);
-  seBrickGfx.lineStyle(1, lineColor, lineAlpha);
+  // SE wall brick/slat lines (drawn on same Graphics as SE fill)
+  seGfx.lineStyle(1, lineColor, lineAlpha);
 
   if (wallPattern < 0.33) {
     // Vertical slats only
@@ -152,13 +148,13 @@ export function renderBuilding(
     for (let along = slatW; along < seWallScreenLen; along += slatW) {
       const x = S.x + along;
       const baseY = S.y - along * 0.5;
-      seBrickGfx.lineBetween(x, baseY, x, baseY - wallHeight);
+      seGfx.lineBetween(x, baseY, x, baseY - wallHeight);
     }
   } else if (wallPattern < 0.66) {
     // Brick pattern
     const numBrickRows = Math.floor(wallHeight / brickH);
     for (let y = brickH; y < wallHeight; y += brickH) {
-      seBrickGfx.lineBetween(S.x, S.y - y, E.x, E.y - y);
+      seGfx.lineBetween(S.x, S.y - y, E.x, E.y - y);
     }
     for (let r = 0; r < numBrickRows; r++) {
       const rowBottom = r * brickH;
@@ -167,29 +163,26 @@ export function renderBuilding(
       for (let along = offset + brickW; along < seWallScreenLen; along += brickW) {
         const x = S.x + along;
         const baseY = S.y - along * 0.5;
-        seBrickGfx.lineBetween(x, baseY - rowBottom, x, baseY - rowTop);
+        seGfx.lineBetween(x, baseY - rowBottom, x, baseY - rowTop);
       }
     }
   }
-  // else: plain walls, no lines
-  objects.push(seBrickGfx);
+  objects.push(seGfx);
 
-  // SW wall lines
-  const swBrickGfx = scene.add.graphics();
-  swBrickGfx.setDepth(building.colStart + building.rowEnd + DEPTH_WALL_FILL + 0.05);
-  swBrickGfx.lineStyle(1, lineColor, lineAlpha);
+  // SW wall brick/slat lines (drawn on same Graphics as SW fill)
+  swGfx.lineStyle(1, lineColor, lineAlpha);
 
   if (wallPattern < 0.33) {
     const slatW = 24 + Math.floor(buildingHash(building.seed, 53) * 40);
     for (let along = slatW; along < swWallScreenLen; along += slatW) {
       const x = S.x - along;
       const baseY = S.y - along * 0.5;
-      swBrickGfx.lineBetween(x, baseY, x, baseY - wallHeight);
+      swGfx.lineBetween(x, baseY, x, baseY - wallHeight);
     }
   } else if (wallPattern < 0.66) {
     const numBrickRows = Math.floor(wallHeight / brickH);
     for (let y = brickH; y < wallHeight; y += brickH) {
-      swBrickGfx.lineBetween(S.x, S.y - y, W.x, W.y - y);
+      swGfx.lineBetween(S.x, S.y - y, W.x, W.y - y);
     }
     for (let r = 0; r < numBrickRows; r++) {
       const rowBottom = r * brickH;
@@ -198,11 +191,11 @@ export function renderBuilding(
       for (let along = offset + brickW; along < swWallScreenLen; along += brickW) {
         const x = S.x - along;
         const baseY = S.y - along * 0.5;
-        swBrickGfx.lineBetween(x, baseY - rowBottom, x, baseY - rowTop);
+        swGfx.lineBetween(x, baseY - rowBottom, x, baseY - rowTop);
       }
     }
   }
-  objects.push(swBrickGfx);
+  objects.push(swGfx);
 
   // --- Balcony slabs on SE wall (each story above ground floor) ---
   const BALCONY_OUT = TILE_W;  // two tile widths outward (~64px)
@@ -215,6 +208,14 @@ export function renderBuilding(
   const rowDirX = (TILE_W / 2) / rowDirLen;
   const rowDirY = (TILE_H / 2) / rowDirLen;
 
+  // Shared Graphics for all balconies and signs (one each, not per-floor)
+  const balcGfx = scene.add.graphics();
+  balcGfx.setDepth(depth + DEPTH_FEATURE + 0.1);
+  const signGfxFlat = scene.add.graphics();
+  signGfxFlat.setDepth(depth + DEPTH_FEATURE + 0.12);
+  const signGfxProtrude = scene.add.graphics();
+  signGfxProtrude.setDepth(depth + DEPTH_FEATURE + 0.18);
+
   for (let floor = 1; floor < building.stories; floor++) {
     const floorY = floor * STORY_HEIGHT;
 
@@ -225,9 +226,6 @@ export function renderBuilding(
     // Outer edge: shifted outward by BALCONY_OUT along +row
     const sOut = { x: sFloor.x + rowDirX * BALCONY_OUT, y: sFloor.y + rowDirY * BALCONY_OUT };
     const eOut = { x: eFloor.x + rowDirX * BALCONY_OUT, y: eFloor.y + rowDirY * BALCONY_OUT };
-
-    const balcGfx = scene.add.graphics();
-    balcGfx.setDepth(depth + DEPTH_FEATURE + 0.1);
 
     // Top face (roof color)
     balcGfx.fillStyle(building.color.top, 1);
@@ -300,16 +298,9 @@ export function renderBuilding(
       balcGfx.lineBetween(eFloor.x, eFloor.y - h, eOut.x, eOut.y - h);
     }
 
-    objects.push(balcGfx);
-
     // --- Protruding neon signs mounted on balcony ---
     // Signs are perpendicular to SE wall (face the +row direction, like S-side railing)
     // Positioned partway along the balcony outer edge
-
-    const signGfxFlat = scene.add.graphics();
-    signGfxFlat.setDepth(depth + DEPTH_FEATURE + 0.12);
-    const signGfxProtrude = scene.add.graphics();
-    signGfxProtrude.setDepth(depth + DEPTH_FEATURE + 0.18);
 
     // Sign dimensions (randomized per floor)
     const sizeR = buildingHash(building.seed, 90 + floor);
@@ -465,9 +456,10 @@ export function renderBuilding(
       }
     }
 
-    objects.push(signGfxFlat);
-    objects.push(signGfxProtrude);
   }
+  objects.push(balcGfx);
+  objects.push(signGfxFlat);
+  objects.push(signGfxProtrude);
 
   // --- Slot grid for SE wall features (doors & windows) ---
   const seWallLen = E.x - S.x;
