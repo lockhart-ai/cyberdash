@@ -1,6 +1,7 @@
 import Phaser from "phaser";
 import { ASSET_CATALOG } from "../config/assetCatalog";
 import { trimCompositeBuildings, trimSkyscrapers } from "../rendering/CompositeBuilding";
+import { trimAsianModules } from "../rendering/BuildingAsian";
 
 export const DIRECTIONS = [
   "south",
@@ -132,6 +133,42 @@ export class BootScene extends Phaser.Scene {
       });
     }
 
+    // Traditional Asian City — stackable building modules (4 rotations per strip, SE=0)
+    const TAC = "asset_packs/Isometric Traditional Asian City/Isometric Traditional Asian City/Architecture";
+    const tacModules: { key: string; file: string; fw: number; h: number }[] = [
+      // Floors
+      { key: "tac-65", file: "Traditional Asian City-65-Building_A_Floor_A.png", fw: 873, h: 641 },
+      { key: "tac-57", file: "Traditional Asian City-57-Building_B_floor_A.png", fw: 873, h: 641 },
+      { key: "tac-59", file: "Traditional Asian City-59-Building_B_floor_C.png", fw: 873, h: 645 },
+      { key: "tac-61", file: "Traditional Asian City-61-Building_B_floor_D.png", fw: 897, h: 665 },
+      { key: "tac-53", file: "Traditional Asian City-53-Building_E_floor_A.png", fw: 925, h: 695 },
+      { key: "tac-54", file: "Traditional Asian City-54-Building_E_floor_B.png", fw: 865, h: 637 },
+      { key: "tac-49", file: "Traditional Asian City-49-Building_F_floor_A.png", fw: 873, h: 641 },
+      { key: "tac-31", file: "Traditional Asian City-31-Building_O_floor_A.png", fw: 873, h: 641 },
+      { key: "tac-30", file: "Traditional Asian City-30-Building_O_floor_B.png", fw: 873, h: 649 },
+      { key: "tac-29", file: "Traditional Asian City-29-Building_O_floor_C.png", fw: 873, h: 645 },
+      { key: "tac-28", file: "Traditional Asian City-28-Building_O_floor_D.png", fw: 869, h: 647 },
+      { key: "tac-21", file: "Traditional Asian City-21-Building_P_floor_A.png", fw: 873, h: 645 },
+      { key: "tac-23", file: "Traditional Asian City-23-Building_P_floor_B.png", fw: 869, h: 639 },
+      // Roofs
+      { key: "tac-62", file: "Traditional Asian City-62-Building_A_roof_A.png",  fw: 1001, h: 669 },
+      { key: "tac-56", file: "Traditional Asian City-56-Building_B_roof_A.png",  fw: 985, h: 945 },
+      { key: "tac-58", file: "Traditional Asian City-58-Building_B_roof_C.png",  fw: 1145, h: 673 },
+      { key: "tac-60", file: "Traditional Asian City-60-Building_B_roof_D.png",  fw: 1145, h: 673 },
+      { key: "tac-52", file: "Traditional Asian City-52-Building_E_roof_A.png",  fw: 1021, h: 779 },
+      { key: "tac-48", file: "Traditional Asian City-48-Building_F_roof_A.png",  fw: 1049, h: 785 },
+      { key: "tac-26", file: "Traditional Asian City-26-Building_O_roof_A.png",  fw: 985, h: 949 },
+      { key: "tac-25", file: "Traditional Asian City-25-Building_O_roof_D.png",  fw: 1145, h: 673 },
+      { key: "tac-20", file: "Traditional Asian City-20-Building_P_roof_A.png",  fw: 985, h: 757 },
+      { key: "tac-22", file: "Traditional Asian City-22-Building_P_roof_B.png",  fw: 1145, h: 673 },
+    ];
+    for (const m of tacModules) {
+      this.load.spritesheet(m.key, `${TAC}/${m.file}`, {
+        frameWidth: m.fw,
+        frameHeight: m.h,
+      });
+    }
+
     // Cyberpunk City Skyscrapers (BuildingModules) — 4 rotations per strip
     const CPC_SKY = "asset_packs/Isometric Cyberpunk City/BuildingModules";
     const skyBuildings = [
@@ -193,6 +230,7 @@ export class BootScene extends Phaser.Scene {
 
     trimCompositeBuildings(this);
     trimSkyscrapers(this);
+    trimAsianModules(this);
     this.generatePlaceholders();
     this.scene.start("GameScene");
   }

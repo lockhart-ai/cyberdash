@@ -7,6 +7,8 @@ import { renderBuilding, renderBuildingFootprint, dumpBuildingMetrics } from "..
 import { renderStreetTile, renderSidewalkTile } from "../rendering/StreetRenderer";
 import { placeBuildingA, LAYER_OVERLAP } from "../rendering/BuildingTypeA";
 import { placeCompositeBuilding, pickComposite, pickCompositeFitting, getCompositeAdvance, CompositeDir, placeSkyscraper } from "../rendering/CompositeBuilding";
+import { placeAsianBuilding } from "../rendering/BuildingAsian";
+import { toggleDebug } from "../rendering/debugOverlay";
 
 type Direction =
   | "south"
@@ -103,6 +105,12 @@ export class GameScene extends Phaser.Scene {
 
     this.cursors = this.input.keyboard!.createCursorKeys();
     this.shiftKey = this.input.keyboard!.addKey(Phaser.Input.Keyboard.KeyCodes.SHIFT);
+
+    // F9 toggles debug overlay (bounding boxes + chain dots)
+    this.input.keyboard!.on("keydown-F9", () => {
+      const on = toggleDebug();
+      console.log(`[debug] overlay ${on ? "ON" : "OFF"}`);
+    });
 
     // Performance diagnostics
     const totalObjects = this.children.length;
@@ -690,6 +698,28 @@ export class GameScene extends Phaser.Scene {
       if (remaining <= 0) break;
 
       const seed = ((bCol * 73856093) ^ (bRow * 19349669) ^ ((i + 100) * 83492791)) >>> 0;
+      // Hash the seed for a uniform 0-1 value
+      let h = (seed + 0x6d2b79f5) | 0;
+      h = Math.imul(h ^ (h >>> 15), 1 | h);
+      h = (h + Math.imul(h ^ (h >>> 7), 61 | h)) ^ h;
+      const rng = ((h ^ (h >>> 14)) >>> 0) / 4294967296;
+
+      // ~30% chance of an Asian heritage building
+      if (rng < 0.3 && remaining > 450) {
+        const asianW = 450;
+        const asianPlaced = placeAsianBuilding(this, {
+          targetW: asianW,
+          x: southX,
+          y: southY,
+          depth: blockColEnd + blockRowEnd - i,
+          seed,
+        });
+        // Chain from the SE corner of the placed Asian building
+        southX = asianPlaced.se.x;
+        southY = asianPlaced.se.y;
+        prevIdx = undefined;
+        continue;
+      }
 
       let chosenIdx = pickComposite(seed, prevIdx);
       const advance = getCompositeAdvance(this, chosenIdx, TARGET_H, CompositeDir.SE, "se");
@@ -733,6 +763,22 @@ export class GameScene extends Phaser.Scene {
         direction: CompositeDir.SE,
       });
     }
+  }
+
+  private placeTestAsianBuilding() {
+    // Place a single test building at block (1, 0) center
+    const bCol = 1, bRow = 0;
+    const centerCol = bCol * COL_PERIOD + BLOCK_INTERIOR.colStart + Math.floor(BLOCK_INTERIOR.cols / 2);
+    const centerRow = bRow * ROW_PERIOD + BLOCK_INTERIOR.rowStart + Math.floor(BLOCK_INTERIOR.rows / 2);
+    const pos = isoToScreen(centerCol, centerRow);
+
+    placeAsianBuilding(this, {
+      targetW: 400,
+      x: pos.x,
+      y: pos.y,
+      depth: centerCol + centerRow + 10,
+      seed: 42,
+    });
   }
 
   private drawShowroom() {

@@ -1,4 +1,5 @@
 import Phaser from "phaser";
+import { addDebugGraphics } from "./debugOverlay";
 
 /** Seeded PRNG (mulberry32) */
 function mulberry32(seed: number): () => number {
@@ -301,6 +302,20 @@ export function placeCompositeBuilding(
   const swX = bbox.left;
   const swY = y - 0.5 * (x - bbox.left);
 
+  // Debug: bounding box + chain dots
+  const gfx = scene.add.graphics();
+  gfx.setDepth(depth + 1);
+  const color = DEBUG_COLORS[debugColorIdx++ % DEBUG_COLORS.length];
+  gfx.lineStyle(2, color, 0.8);
+  gfx.strokeRect(bbox.left, bbox.top, bbox.right - bbox.left, bbox.bottom - bbox.top);
+  gfx.fillStyle(0xffffff, 1);
+  gfx.fillCircle(x, y, 4);
+  gfx.fillStyle(0xff0000, 1);
+  gfx.fillCircle(seX, seY, 4);
+  gfx.fillStyle(0x0088ff, 1);
+  gfx.fillCircle(swX, swY, 4);
+  addDebugGraphics(gfx);
+
   return { img, bbox, se: { x: seX, y: seY }, sw: { x: swX, y: swY }, buildingIdx };
 }
 
@@ -436,6 +451,20 @@ export function placeSkyscraper(
   const seY = y - 0.5 * (bbox.right - x);
   const swX = bbox.left;
   const swY = y - 0.5 * (x - bbox.left);
+
+  // Debug: bounding box + chain dots
+  const skyGfx = scene.add.graphics();
+  skyGfx.setDepth(depth + 1);
+  const skyColor = DEBUG_COLORS[debugColorIdx++ % DEBUG_COLORS.length];
+  skyGfx.lineStyle(2, skyColor, 0.8);
+  skyGfx.strokeRect(bbox.left, bbox.top, bbox.right - bbox.left, bbox.bottom - bbox.top);
+  skyGfx.fillStyle(0xffffff, 1);
+  skyGfx.fillCircle(x, y, 4);
+  skyGfx.fillStyle(0xff0000, 1);
+  skyGfx.fillCircle(seX, seY, 4);
+  skyGfx.fillStyle(0x0088ff, 1);
+  skyGfx.fillCircle(swX, swY, 4);
+  addDebugGraphics(skyGfx);
 
   return { img, bbox, se: { x: seX, y: seY }, sw: { x: swX, y: swY }, buildingIdx };
 }
