@@ -19,54 +19,34 @@ CyberDash is a cyberpunk courier action game. The player is a cybernetically enh
 - `public/assets/audio/` - Sound effects and music
 
 ## Asset Pipeline
-- **SE wall assets (doors, windows)**: Replicate `retro-diffusion/rd-plus` model with `isometric_asset` style
-- **Characters/sprites**: PixelLab (AI pixel art generator — directional sprites, animations)
-- **Cleanup/Animation**: Aseprite
-- **Tilemap Editing**: Tiled (exports JSON for Phaser)
-- Sprites go in `public/assets/sprites/` as PNG sprite sheets
-- Tilemaps go in `public/assets/tilemaps/` as Tiled JSON + tileset PNGs
 
-## SE Wall Asset Pipeline (doors, windows, etc.)
+### Purchased Asset Packs (primary source)
+- **27 isometric packs** (~6700 PNGs) stored at `/tmp/cyberdash_asset_packs/`
+- Symlinked into project at `public/asset_packs/` (gitignored)
+- Key packs: Cyberpunk City, Cyberpunk Buildings, Cyberpunk Streets, Cyberpunk Interior, Roads and Cars
 
-Generate via Replicate, filter, correct, postprocess:
+### STRICT Asset Rules
+1. **Never modify originals.** Asset packs stay untouched in their source location. Copy/cut assets into the project when needed.
+2. **Zero post-processing.** No resizing, no shearing, no smoothing, no color correction, no scaling, no modifications of any kind. Preserve exact pixel-perfect originals.
+3. **Only cutting is allowed.** Splitting sprite strips into individual tiles is OK. Everything else is off-limits.
+4. **Project copies live in `public/assets/tiles/`** (organized by pack/category).
 
-1. **Generate 10 candidates** via `scripts/replicate_generate.py`:
-   ```
-   python3 scripts/replicate_generate.py "large glass window flat asset isometric 2:1 pixel art black background" \
-     --style isometric_asset --width 384 --height 384 -n 10 --remove-bg -o /tmp/asset.png
-   ```
-2. **Remove black backgrounds** (Pillow: pixels with R<20, G<20, B<20 → alpha=0), auto-crop to content
-3. **Filter by angle** — `scripts/check_iso_angle.py --fix --tolerance 0.09 *.png`
-   - Auto-flips SW-facing → SE
-   - Keep only assets with slopes within ±0.09 of -0.5 (i.e. -0.41 to -0.59)
-   - Typically ~6-7 of 10 pass
-4. **Shear-correct to exactly -0.5** — affine vertical shear (shift columns up/down by measured error)
-5. **Postprocess** — `scripts/postprocess.py *.png` to darken/blue-shift for cyberpunk aesthetic
-6. **Audition in-game** — showroom wall in NW corner displays all candidates numbered for review
+### Characters/Sprites — PixelLab
+- Player character sprites in `public/assets/sprites/player/`
+- 8 directions, walk (6 frames) and run (8 frames) animations
+- 64x64 frame size
 
-Key facts:
-- SE wall target slope = **-0.5 dy/dx** (right side higher)
-- Use **uniform scaling** `setScale(s, s)` in renderer — non-uniform distorts the angle
-- `check_iso_angle.py` auto-detects black vs transparent backgrounds
-- Replicate prompt format: `"<object> flat asset isometric 2:1 pixel art black background"`
-- Always use `--style isometric_asset --width 384 --height 384`
-- Requires `REPLICATE_API_TOKEN` in `.env`
+### Other tools
+- **Aseprite** for cleanup/animation polish
+- **Tiled** for isometric tilemap editing (exports JSON for Phaser)
 
-## PixelLab Rules (for characters/sprites only)
-- Description = bare minimum object name + isometric qualifiers. NO adjectives.
-- Standard qualifiers: `isometric 2:1 perspective, flat on wall, facing southeast, pixel art`
-- Use API params (view, detail, shading, outline) for style, NOT the description
-- PixelLab **cannot reliably generate iso-angled wall elements** — use Replicate instead
-
-## Rendering Sizes & Placement
-- **Always be intentional about rendered sizes and positions.** Never place an asset without explicitly choosing its rendered pixel dimensions and position. What matters is how things look in the game, not the source image size.
-- Source images are kept full-res on disk. The renderer computes a scale factor to hit the target rendered size.
-- **Standard rendered sizes**: Doors = 56x128px, Windows = 48x80px (target height, uniform scale)
-- Sizes and layout constants live in `src/rendering/BuildingMetrics.ts` — change them there, not ad-hoc in the renderer.
+## Rendering Rules
+- **Always specify target render size in pixels.** Before placing any asset, decide its rendered dimensions (e.g. "64px tall"). Compute `scale = targetH / frame.height` from that. Never use arbitrary scale factors like `0.1` — always derive scale from an explicit pixel target.
+- Source images stay at original resolution on disk. The renderer computes scale to hit the target.
+- `pixelArt: true`, `roundPixels: true`, antialias disabled for crisp pixels.
 
 ## Conventions
 - Use Phaser's scene system for game state management
 - Keep game config in `src/config/game.ts`
 - One class per file, filename matches class name
-- Use `pixelArt: true` and `roundPixels: true` for crisp pixel rendering
 - Dev server runs on port 3000

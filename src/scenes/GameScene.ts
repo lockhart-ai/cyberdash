@@ -2,8 +2,11 @@ import Phaser from "phaser";
 import { TILE_W, TILE_H, isoToScreen, screenToIso } from "../iso/IsoGeometry";
 import { COL_PERIOD, ROW_PERIOD, STREET_WIDTH, SIDEWALK_WIDTH, BLOCK_INTERIOR, TileType, CURB_HEIGHT } from "../iso/CityLayout";
 import { Building, BUILDING_PALETTE } from "../rendering/BuildingTypes";
+import { ASSET_CATALOG } from "../config/assetCatalog";
 import { renderBuilding, renderBuildingFootprint, dumpBuildingMetrics } from "../rendering/BuildingRenderer";
 import { renderStreetTile, renderSidewalkTile } from "../rendering/StreetRenderer";
+import { placeBuildingA, LAYER_OVERLAP } from "../rendering/BuildingTypeA";
+import { placeCompositeBuilding, pickComposite, pickCompositeFitting, getCompositeWidth, CompositeDir } from "../rendering/CompositeBuilding";
 
 type Direction =
   | "south"
@@ -29,6 +32,7 @@ export class GameScene extends Phaser.Scene {
   }[] = [];
   private walls!: Phaser.Physics.Arcade.StaticGroup;
   private fpsEl!: HTMLElement | null;
+  private coordEl!: HTMLElement | null;
   private neonTexts: Phaser.GameObjects.Image[] = [];
 
   // Walk tuning
@@ -54,23 +58,23 @@ export class GameScene extends Phaser.Scene {
     this.cityMap = this.generateCityMap();
     this.drawCityMap();
 
-    // Building collision bodies — perimeter only (interior unreachable)
-    for (let row = 0; row < this.mapRows; row++) {
-      for (let col = 0; col < this.mapCols; col++) {
-        if (this.cityMap[row][col] === TileType.BUILDING) {
-          const colMod = col % COL_PERIOD;
-          const rowMod = row % ROW_PERIOD;
-          const isEdge =
-            colMod === BLOCK_INTERIOR.colStart || colMod === BLOCK_INTERIOR.colEnd ||
-            rowMod === BLOCK_INTERIOR.rowStart || rowMod === BLOCK_INTERIOR.rowEnd;
-          if (!isEdge) continue;
-          const { x, y } = isoToScreen(col, row);
-          const zone = this.add.zone(x, y, TILE_W * 0.45, TILE_H * 0.45);
-          this.physics.add.existing(zone, true);
-          this.walls.add(zone);
-        }
-      }
-    }
+    // Building collision bodies — disabled while composing new buildings
+    // for (let row = 0; row < this.mapRows; row++) {
+    //   for (let col = 0; col < this.mapCols; col++) {
+    //     if (this.cityMap[row][col] === TileType.BUILDING) {
+    //       const colMod = col % COL_PERIOD;
+    //       const rowMod = row % ROW_PERIOD;
+    //       const isEdge =
+    //         colMod === BLOCK_INTERIOR.colStart || colMod === BLOCK_INTERIOR.colEnd ||
+    //         rowMod === BLOCK_INTERIOR.rowStart || rowMod === BLOCK_INTERIOR.rowEnd;
+    //       if (!isEdge) continue;
+    //       const { x, y } = isoToScreen(col, row);
+    //       const zone = this.add.zone(x, y, TILE_W * 0.45, TILE_H * 0.45);
+    //       this.physics.add.existing(zone, true);
+    //       this.walls.add(zone);
+    //     }
+    //   }
+    // }
 
     // Spawn player on a street tile
     const spawnCol = 4 + 36;
@@ -88,13 +92,14 @@ export class GameScene extends Phaser.Scene {
     this.physics.add.collider(this.player, this.walls);
 
     // Camera
-    this.cameras.main.setZoom(0.75);
+    this.cameras.main.setZoom(1.5);
     this.cameras.main.startFollow(this.player, true, 0.08, 0.08);
     this.cameras.main.setFollowOffset(0, 100);
     this.cameras.main.setDeadzone(40, 40);
 
     // HUD is rendered as HTML overlay (see index.html) for native resolution
     this.fpsEl = document.getElementById("hud-fps");
+    this.coordEl = document.getElementById("hud-coords");
 
     this.cursors = this.input.keyboard!.createCursorKeys();
     this.shiftKey = this.input.keyboard!.addKey(Phaser.Input.Keyboard.KeyCodes.SHIFT);
@@ -108,6 +113,7 @@ export class GameScene extends Phaser.Scene {
 
   update() {
     if (this.fpsEl) this.fpsEl.textContent = `${Math.round(this.game.loop.actualFps)} fps`;
+    if (this.coordEl) this.coordEl.textContent = `${Math.round(this.player.x)}, ${Math.round(this.player.y)}`;
 
     const body = this.player.body as Phaser.Physics.Arcade.Body;
     const running = this.shiftKey.isDown;
@@ -162,28 +168,9 @@ export class GameScene extends Phaser.Scene {
     const playerDepth = feetY / (TILE_H / 2);
     this.player.setDepth(playerDepth);
 
-    // Hide buildings that obstruct the player
-    const { col: pCol, row: pRow } = screenToIso(this.player.x, feetY);
-    const margin = 24;  // extended for 3-5 story buildings
-
-    for (const entry of this.buildingObjects) {
-      const b = entry.data;
-      const nearestCol = Math.max(b.colStart, Math.min(b.colEnd, pCol));
-      const nearestRow = Math.max(b.rowStart, Math.min(b.rowEnd, pRow));
-      const behind = pCol + pRow < nearestCol + nearestRow;
-      const withinCol = pCol >= b.colStart - margin && pCol <= b.colEnd;
-      const withinRow = pRow >= b.rowStart - margin && pRow <= b.rowEnd;
-      const hide = behind && withinCol && withinRow;
-
-      for (const obj of entry.objects) {
-        (obj as Phaser.GameObjects.Graphics).setVisible(!hide);
-      }
-      entry.footprint.setVisible(hide);
-    }
-
-    const t = 0.5 + 0.5 * Math.sin(this.time.now * Math.PI / 2000);
-    const neonAlpha = 0.6 + 0.4 * t;
-    for (const img of this.neonTexts) img.setAlpha(neonAlpha);
+    // Building occlusion — disabled while composing new buildings
+    // const { col: pCol, row: pRow } = screenToIso(this.player.x, feetY);
+    // ...occlusion logic...
   }
 
   private getDirection(dx: number, dy: number): Direction {
@@ -269,8 +256,8 @@ export class GameScene extends Phaser.Scene {
           const heightOffset = Math.floor(h(5) * 60);
           const doorSide = h(6) < 0.5 ? "left" as const : "right" as const;
           const doorInset = 10 + Math.floor(h(7) * 30);
-          const doorTexture = Math.floor(h(8) * 9);
-          const windowTexture = Math.floor(h(9) * 11);
+          const doorTexture = Math.floor(h(8) * 14);
+          const windowTexture = Math.floor(h(9) * 12);
 
           this.buildings.push({
             seed,
@@ -363,24 +350,14 @@ export class GameScene extends Phaser.Scene {
       }
     }
 
-    // Render buildings as 3-shape parallelograms
-    for (const building of this.buildings) {
-      const objects = renderBuilding(this, building);
-      const footprint = renderBuildingFootprint(this, building);
-      this.buildingObjects.push({ data: building, objects, footprint });
-      for (const obj of objects) {
-        if ((obj as any).isNeonText) this.neonTexts.push(obj as Phaser.GameObjects.Image);
-      }
-    }
+    // Buildings, props, and showroom — disabled while composing new buildings
+    // for (const building of this.buildings) { ... }
+    // this.placeTrafficLights();
+    // this.placeSewerGrates();
+    // this.placeSteamVents();
+    // this.drawShowroom();
 
-    // Diagnostic: dump building/window/door metrics to console
-    dumpBuildingMetrics(this, this.buildings);
-
-    this.placeParkedCars();
-    this.placeTrafficLights();
-    this.placeSewerGrates();
-    this.placeSteamVents();
-    this.drawShowroom();
+    this.placeTestBuildings();
   }
 
   private placeParkedCars() {
@@ -620,43 +597,86 @@ export class GameScene extends Phaser.Scene {
     }
   }
 
+  private placeTestBuildings() {
+    const numBlockCols = Math.floor(this.mapCols / COL_PERIOD);
+    const numBlockRows = Math.floor(this.mapRows / ROW_PERIOD);
+    for (let bCol = 0; bCol < numBlockCols; bCol++) {
+      for (let bRow = 0; bRow < numBlockRows; bRow++) {
+        this.placeBlockComposites(bCol, bRow);
+      }
+    }
+  }
+
+  /**
+   * Place a single composite building on a block for alignment testing.
+   * South point placed at the block's SE corner grid position.
+   */
+  private placeBlockComposites(bCol: number, bRow: number) {
+    const TARGET_H = 800;
+
+    const blockColEnd = bCol * COL_PERIOD + BLOCK_INTERIOR.colEnd;
+    const blockRowEnd = bRow * ROW_PERIOD + BLOCK_INTERIOR.rowEnd;
+
+    // Start at SW corner of block (colEnd, rowEnd) = bottommost on screen
+    const startPos = isoToScreen(blockColEnd, blockRowEnd);
+
+    // SE limit: block's SE corner (colEnd, rowStart)
+    const blockRowStart = bRow * ROW_PERIOD + BLOCK_INTERIOR.rowStart;
+    const limitX = isoToScreen(blockColEnd, blockRowStart).x;
+
+    let southX = startPos.x;
+    let southY = startPos.y;
+    let prevIdx: number | undefined;
+
+    for (let i = 0; ; i++) {
+      const remaining = limitX - southX;
+      if (remaining <= 0) break;
+
+      const seed = ((bCol * 73856093) ^ (bRow * 19349669) ^ (i * 83492791)) >>> 0;
+
+      // First two buildings: random pick. After that: largest that fits.
+      let useIdx: number | undefined;
+      if (i >= 2) {
+        useIdx = pickCompositeFitting(this, TARGET_H, remaining, prevIdx);
+        if (useIdx === undefined) break;
+      }
+
+      const placed = placeCompositeBuilding(this, {
+        targetH: TARGET_H,
+        x: southX,
+        y: southY,
+        depth: blockColEnd + blockRowEnd + 10 - i,
+        seed,
+        exclude: prevIdx,
+      });
+
+      southX = placed.se.x;
+      southY = placed.se.y;
+      prevIdx = placed.buildingIdx;
+    }
+  }
+
   private drawShowroom() {
     const dpr = window.devicePixelRatio || 1;
 
-    const sections = [
-      { label: "METAL DOOR", prefix: "metal-door", count: 9, targetH: 128 },
-      { label: "NEW DOORS", prefix: "metal-door-new", count: 7, targetH: 128 },
-      { label: "WINDOWS", prefix: "window", count: 11, targetH: 96 },
-      { label: "NEW WINDOWS", prefix: "window-new", count: 5, targetH: 96 },
-      { label: "NEW WIN 2", prefix: "window-new2", count: 9, targetH: 96 },
-      { label: "GARBAGE BIN", prefix: "garbage-bin", count: 6, targetH: 64 },
-      { label: "VENDING MACH", prefix: "vending-machine", count: 9, targetH: 96 },
-      { label: "GARAGE DOOR", prefix: "garage-door", count: 7, targetH: 128 },
-      { label: "ELEC BOX", prefix: "elec-box", count: 1, targetH: 96 },
-      { label: "WALL VENT", prefix: "wall-vent", count: 3, targetH: 80 },
-      { label: "NEON NOODLE", prefix: "neon-noodle-sign", count: 10, targetH: 96 },
-      { label: "NEON DRAGON", prefix: "neon-dragon-sign", count: 10, targetH: 96 },
-      { label: "CAR", prefix: "car", count: 10, targetH: 160 },
-    ];
-
-    // Each section gets its own lane — adjacent walls going NW (incrementing col)
+    // Each category gets its own lane — adjacent walls going NW (incrementing col)
     const baseCol = 1;
-    const colSpacing = 8;       // columns between each lane
-    const rStart = -2;          // start just outside the city edge
-    const baseSlotsPerItem = 3; // row-tiles per asset slot at baseline targetH (96)
-    const wallHeight = 200;
+    const colSpacing = 12;
+    const rStart = -2;
+    const baseSlotsPerItem = 6;
+    const wallHeight = 300;
 
-    for (let lane = 0; lane < sections.length; lane++) {
-      const sec = sections[lane];
+    for (let lane = 0; lane < ASSET_CATALOG.length; lane++) {
+      const sec = ASSET_CATALOG[lane];
       const laneCol = baseCol + lane * colSpacing;
       const slotsPerItem = Math.ceil(baseSlotsPerItem * sec.targetH / 64);
-      const rEnd = rStart - sec.count * slotsPerItem; // extend NW (negative rows)
+      const rEnd = rStart - sec.entries.length * slotsPerItem;
 
-      // Wall backdrop for this lane (rEnd < rStart, wall extends NW)
-      const lE = isoToScreen(laneCol, rEnd);    // NE end (far NW)
-      const lS = isoToScreen(laneCol, rStart);   // SW end (near city)
+      const lE = isoToScreen(laneCol, rEnd);
+      const lS = isoToScreen(laneCol, rStart);
       const laneDepth = laneCol + Math.abs(rStart) + 1;
 
+      // Wall backdrop
       const gfx = this.add.graphics();
       gfx.setDepth(laneDepth);
       gfx.fillStyle(0x2a2a35, 1);
@@ -667,37 +687,34 @@ export class GameScene extends Phaser.Scene {
         new Phaser.Geom.Point(lE.x, lE.y - wallHeight),
       ], true);
 
-      // Section label — at the SW end (opposite end from assets)
-      const labelX = lS.x;
-      const labelY = lS.y - wallHeight - 8;
-      this.add.text(labelX, labelY, sec.label, {
+      // Category label
+      this.add.text(lS.x, lS.y - wallHeight - 8, sec.category, {
         fontFamily: "Arial, Helvetica, sans-serif",
         fontSize: "14px",
-        color: "#00ffff",
+        color: "#" + sec.color.toString(16).padStart(6, "0"),
         fontStyle: "bold",
       }).setOrigin(0, 1).setResolution(dpr).setDepth(laneDepth + 0.2);
 
       // Place each asset along the lane
-      for (let i = 0; i < sec.count; i++) {
-        const t = (i + 0.5) / sec.count;
+      for (let i = 0; i < sec.entries.length; i++) {
+        const entry = sec.entries[i];
+        const t = (i + 0.5) / sec.entries.length;
         const ax = lS.x + t * (lE.x - lS.x);
         const ay = lS.y + t * (lE.y - lS.y);
 
-        const texKey = `${sec.prefix}-${i}`;
-        const frame = this.textures.getFrame(texKey);
+        const frame = this.textures.getFrame(entry.key);
         if (!frame) continue;
 
         const scale = sec.targetH / frame.height;
-        const img = this.add.image(ax, ay - 10, texKey);
+        const img = this.add.image(ax, ay - 10, entry.key);
         img.setOrigin(0.5, 1).setScale(scale);
         img.setDepth(laneDepth + 0.1);
 
-        // Index label under each asset
-        this.add.text(ax, ay - 10 - sec.targetH - 4, `${i}`, {
+        // Label with short name
+        this.add.text(ax, ay - 10 - sec.targetH - 4, entry.label, {
           fontFamily: "Arial, Helvetica, sans-serif",
-          fontSize: "18px",
-          color: "#00ffff",
-          fontStyle: "bold",
+          fontSize: "10px",
+          color: "#aaaaaa",
         }).setOrigin(0.5, 1).setResolution(dpr).setDepth(laneDepth + 0.2);
       }
     }

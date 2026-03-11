@@ -6,8 +6,8 @@ game-ready textures: bg removed, angle-filtered, shear-corrected, postprocessed.
 
 Usage:
     python3 scripts/process_assets.py /tmp/rd_window_*.png -o public/assets/sprites/window
-    python3 scripts/process_assets.py /tmp/rd_door_*.png -o public/assets/sprites/door --target-height 128
-    python3 scripts/process_assets.py /tmp/rd_window_*.png -o public/assets/sprites/window --target-height 96
+    python3 scripts/process_assets.py /tmp/rd_door_*.png -o public/assets/sprites/door
+    python3 scripts/process_assets.py /tmp/rd_door_*.png -o public/assets/sprites/door --start-index 6
 
 Steps:
     1. Remove black background (R<20, G<20, B<20 → transparent)
@@ -15,23 +15,15 @@ Steps:
     3. Auto-flip SW-facing → SE
     4. Filter by isometric angle (±tolerance of -0.5)
     5. Shear-correct to exactly -0.5
-    6. Resize to target height (nearest-neighbor, for 1:1 pixel mapping)
-    7. Postprocess (cyberdark preset: darken, blue-shift, contrast)
-    8. Save with sequential numbering
-
-Target heights by asset type (from BuildingMetrics.ts / GameScene.ts):
-    --target-height 128   metal doors, garage doors, cars
-    --target-height 96    windows, vending machines, wall vents, elec boxes
-    --target-height 48    garbage bins
-    --target-height 140   traffic lights
-    --target-height 32    steam vents
+    6. Postprocess (cyberdark preset: darken, blue-shift, contrast)
+    7. Save with sequential numbering
 """
 
 import argparse
 import sys
 from pathlib import Path
 
-from PIL import Image, ImageEnhance, ImageFilter
+from PIL import Image, ImageEnhance
 
 TARGET_SLOPE = -0.5
 DEFAULT_TOLERANCE = 0.09
@@ -148,68 +140,7 @@ def shear_correct(img: Image.Image) -> Image.Image:
     return result
 
 
-# ── Step 6: Resize to target height ───────────────────────────────────────────
-
-def resize_to_target(img: Image.Image, target_h: int, smooth: bool = False) -> Image.Image:
-    """Resize to exact target height. Maintains aspect ratio.
-
-    If smooth=True: upscale 8x nearest-neighbor → median filter to kill stray
-    pixels → gaussian blur to soften jaggies → LANCZOS downsample to target.
-    The result has clean anti-aliased edges instead of blocky pixel stairs.
-
-    If smooth=False: direct nearest-neighbor resize (blocky but faithful).
-    """
-    w, h = img.size
-    if h == target_h and not smooth:
-        return img
-
-    scale = target_h / h
-    new_w = max(1, round(w * scale))
-
-    if not smooth:
-        return img.resize((new_w, target_h), Image.NEAREST)
-
-    # Split into RGB + alpha so we can process them separately
-    r, g, b, a = img.split()
-
-    # Step A: Upscale 16x with nearest-neighbor
-    up_w, up_h = w * 16, h * 16
-    r_up = r.resize((up_w, up_h), Image.NEAREST)
-    g_up = g.resize((up_w, up_h), Image.NEAREST)
-    b_up = b.resize((up_w, up_h), Image.NEAREST)
-    a_up = a.resize((up_w, up_h), Image.NEAREST)
-
-    # Step B: Median filter on RGB to kill stray/noisy pixels (preserves edges)
-    r_up = r_up.filter(ImageFilter.MedianFilter(5))
-    g_up = g_up.filter(ImageFilter.MedianFilter(5))
-    b_up = b_up.filter(ImageFilter.MedianFilter(5))
-
-    # Step C: Gaussian blur on RGB to soften the block edges
-    r_up = r_up.filter(ImageFilter.GaussianBlur(radius=4.0))
-    g_up = g_up.filter(ImageFilter.GaussianBlur(radius=4.0))
-    b_up = b_up.filter(ImageFilter.GaussianBlur(radius=4.0))
-
-    # Step D: Smooth alpha edges (moderate blur to keep shape but clean edges)
-    a_up = a_up.filter(ImageFilter.GaussianBlur(radius=3.0))
-
-    # Step E: Sharpen at full res — unsharp mask gives LANCZOS crisp edges to work with
-    rgb_up = Image.merge("RGB", (r_up, g_up, b_up))
-    rgb_up = rgb_up.filter(ImageFilter.UnsharpMask(radius=2.0, percent=200, threshold=2))
-    r_up, g_up, b_up = rgb_up.split()
-
-    # Step F: LANCZOS downsample to target size
-    r_out = r_up.resize((new_w, target_h), Image.LANCZOS)
-    g_out = g_up.resize((new_w, target_h), Image.LANCZOS)
-    b_out = b_up.resize((new_w, target_h), Image.LANCZOS)
-    a_out = a_up.resize((new_w, target_h), Image.LANCZOS)
-
-    # Step G: Snap alpha to 0/255 to avoid semi-transparent fringing
-    a_out = a_out.point(lambda v: 255 if v > 64 else 0)
-
-    return Image.merge("RGBA", (r_out, g_out, b_out, a_out))
-
-
-# ── Step 7: Postprocess (cyberdark) ───────────────────────────────────────────
+# ── Step 6: Postprocess (cyberdark) ───────────────────────────────────────────
 
 def postprocess(img: Image.Image) -> Image.Image:
     """Darken, blue-shift, and contrast-boost for cyberpunk aesthetic."""
@@ -248,10 +179,6 @@ def main():
                         help="Starting index for output numbering (default: 0)")
     parser.add_argument("--tolerance", type=float, default=DEFAULT_TOLERANCE,
                         help=f"Max slope deviation from -0.5 (default: {DEFAULT_TOLERANCE})")
-    parser.add_argument("--target-height", type=int, default=None,
-                        help="Resize to exact pixel height (for 1:1 mapping)")
-    parser.add_argument("--smooth", action="store_true",
-                        help="Upscale→smooth→downsample for clean anti-aliased edges (use with --target-height)")
     parser.add_argument("--no-shear", action="store_true",
                         help="Skip shear correction (for ground-level assets)")
     parser.add_argument("--dry-run", action="store_true",
@@ -296,14 +223,7 @@ def main():
         else:
             print(f"  Skipped shear correction")
 
-        # Step 6: Resize to target height (1:1 pixel mapping)
-        if args.target_height:
-            before = img.size
-            img = resize_to_target(img, args.target_height, smooth=args.smooth)
-            mode = "smooth" if args.smooth else "nearest"
-            print(f"  Resized ({mode}): {before[0]}x{before[1]} → {img.size[0]}x{img.size[1]}")
-
-        # Step 7: Postprocess
+        # Step 6: Postprocess
         img = postprocess(img)
         print(f"  Postprocessed")
 
