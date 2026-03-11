@@ -1,6 +1,6 @@
 import Phaser from "phaser";
 import { ASSET_CATALOG } from "../config/assetCatalog";
-import { trimCompositeBuildings } from "../rendering/CompositeBuilding";
+import { trimCompositeBuildings, trimSkyscrapers } from "../rendering/CompositeBuilding";
 
 export const DIRECTIONS = [
   "south",
@@ -132,6 +132,20 @@ export class BootScene extends Phaser.Scene {
       });
     }
 
+    // Cyberpunk City Skyscrapers (BuildingModules) — 4 rotations per strip
+    const CPC_SKY = "asset_packs/Isometric Cyberpunk City/BuildingModules";
+    const skyBuildings = [
+      { key: "sky-0", file: "Building.png" },
+      { key: "sky-1", file: "Building1.png" },
+      { key: "sky-2", file: "Building3.png" },
+    ];
+    for (const s of skyBuildings) {
+      this.load.spritesheet(s.key, `${CPC_SKY}/${s.file}`, {
+        frameWidth: 249,
+        frameHeight: 633,
+      });
+    }
+
     // Cyberpunk City Composite Buildings — 4 rotations per strip (SE, NE, NW, SW)
     const CPC = "asset_packs/Isometric Cyberpunk City/CompositeBuildings";
     const cpcBuildings: { key: string; file: string; fw: number; h: number }[] = [
@@ -178,6 +192,7 @@ export class BootScene extends Phaser.Scene {
     }
 
     trimCompositeBuildings(this);
+    trimSkyscrapers(this);
     this.generatePlaceholders();
     this.scene.start("GameScene");
   }

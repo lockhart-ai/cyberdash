@@ -6,7 +6,7 @@ import { ASSET_CATALOG } from "../config/assetCatalog";
 import { renderBuilding, renderBuildingFootprint, dumpBuildingMetrics } from "../rendering/BuildingRenderer";
 import { renderStreetTile, renderSidewalkTile } from "../rendering/StreetRenderer";
 import { placeBuildingA, LAYER_OVERLAP } from "../rendering/BuildingTypeA";
-import { placeCompositeBuilding, pickComposite, pickCompositeFitting, getCompositeAdvance, CompositeDir } from "../rendering/CompositeBuilding";
+import { placeCompositeBuilding, pickComposite, pickCompositeFitting, getCompositeAdvance, CompositeDir, placeSkyscraper } from "../rendering/CompositeBuilding";
 
 type Direction =
   | "south"
@@ -608,37 +608,57 @@ export class GameScene extends Phaser.Scene {
   }
 
   /**
-   * Place a single composite building on a block for alignment testing.
-   * South point placed at the block's SE corner grid position.
+   * Place composite buildings on a block.
+   * 1. Anchor: SW facade at the SW corner (colEnd, rowEnd)
+   * 2. Chain SW facades NW (screen-left) from anchor's SW corner
+   * 3. Chain SE buildings SE (screen-right) from anchor's SE corner
    */
   private placeBlockComposites(bCol: number, bRow: number) {
     const TARGET_H = 800;
 
     const blockColEnd = bCol * COL_PERIOD + BLOCK_INTERIOR.colEnd;
     const blockRowEnd = bRow * ROW_PERIOD + BLOCK_INTERIOR.rowEnd;
+    const blockColStart = bCol * COL_PERIOD + BLOCK_INTERIOR.colStart;
+    const blockRowStart = bRow * ROW_PERIOD + BLOCK_INTERIOR.rowStart;
 
-    // Start at SW corner of block (colEnd, rowEnd) = bottommost on screen
+    // SW corner of block = bottommost on screen = anchor point
     const startPos = isoToScreen(blockColEnd, blockRowEnd);
 
-    // SE limit: block's SE corner (colEnd, rowStart)
-    const blockRowStart = bRow * ROW_PERIOD + BLOCK_INTERIOR.rowStart;
-    const limitX = isoToScreen(blockColEnd, blockRowStart).x;
+    // Corner buildings (show both SE + SW faces): buildings 0, 1, 3, 4
+    const CORNERS = [0, 1, 3, 4];
+    // Thin facade indices (SW ratio < 0.75): buildings 6-15
+    const FACADES = [6, 7, 8, 9, 10, 11, 12, 13, 14, 15];
 
-    let southX = startPos.x;
-    let southY = startPos.y;
-    let prevIdx: number | undefined;
+    // --- Anchor: corner building at the SW corner, SE-facing (shows both faces) ---
+    const anchorSeed = ((bCol * 73856093) ^ (bRow * 19349669)) >>> 0;
+    const anchorIdx = CORNERS[anchorSeed % CORNERS.length];
+    const anchor = placeCompositeBuilding(this, {
+      targetH: TARGET_H,
+      x: startPos.x,
+      y: startPos.y,
+      depth: blockColEnd + blockRowEnd + 10,
+      seed: anchorSeed,
+      direction: CompositeDir.SE,
+      buildingIdx: anchorIdx,
+    });
 
-    for (let i = 0; ; i++) {
-      const remaining = limitX - southX;
+    // --- Chain SW facades NW (screen-left) from anchor's SW corner ---
+    const nwLimitX = isoToScreen(blockColStart, blockRowEnd).x;
+    let southX = anchor.sw.x;
+    let southY = anchor.sw.y;
+    let prevIdx: number | undefined = anchor.buildingIdx;
+
+    for (let i = 1; ; i++) {
+      const remaining = southX - nwLimitX;
       if (remaining <= 0) break;
 
       const seed = ((bCol * 73856093) ^ (bRow * 19349669) ^ (i * 83492791)) >>> 0;
 
-      // Pick a random building, but verify it fits. If not, pick the largest that fits.
-      let chosenIdx = pickComposite(seed, prevIdx);
-      const advance = getCompositeAdvance(this, chosenIdx, TARGET_H);
+      let chosenIdx = FACADES[seed % FACADES.length];
+      if (chosenIdx === prevIdx) chosenIdx = FACADES[(seed + 1) % FACADES.length];
+      const advance = getCompositeAdvance(this, chosenIdx, TARGET_H, CompositeDir.SW, "nw");
       if (advance > remaining) {
-        const fitting = pickCompositeFitting(this, TARGET_H, remaining, prevIdx);
+        const fitting = pickCompositeFitting(this, TARGET_H, remaining, prevIdx, CompositeDir.SW, "nw", FACADES);
         if (fitting === undefined) break;
         chosenIdx = fitting;
       }
@@ -649,6 +669,42 @@ export class GameScene extends Phaser.Scene {
         y: southY,
         depth: blockColEnd + blockRowEnd + 10 - i,
         seed,
+        direction: CompositeDir.SW,
+        buildingIdx: chosenIdx,
+      });
+
+      southX = placed.sw.x;
+      southY = placed.sw.y;
+      prevIdx = placed.buildingIdx;
+    }
+
+    // --- Chain SE buildings SE (screen-right) from anchor's SE corner ---
+    // The anchor SW building is the first building in the SE chain.
+    const seLimitX = isoToScreen(blockColEnd, blockRowStart).x;
+    southX = anchor.se.x;
+    southY = anchor.se.y;
+    prevIdx = anchor.buildingIdx;
+
+    for (let i = 0; ; i++) {
+      const remaining = seLimitX - southX;
+      if (remaining <= 0) break;
+
+      const seed = ((bCol * 73856093) ^ (bRow * 19349669) ^ ((i + 100) * 83492791)) >>> 0;
+
+      let chosenIdx = pickComposite(seed, prevIdx);
+      const advance = getCompositeAdvance(this, chosenIdx, TARGET_H, CompositeDir.SE, "se");
+      if (advance > remaining) {
+        const fitting = pickCompositeFitting(this, TARGET_H, remaining, prevIdx, CompositeDir.SE, "se");
+        if (fitting === undefined) break;
+        chosenIdx = fitting;
+      }
+
+      const placed = placeCompositeBuilding(this, {
+        targetH: TARGET_H,
+        x: southX,
+        y: southY,
+        depth: blockColEnd + blockRowEnd - i,
+        seed,
         exclude: prevIdx,
         buildingIdx: chosenIdx,
       });
@@ -656,6 +712,26 @@ export class GameScene extends Phaser.Scene {
       southX = placed.se.x;
       southY = placed.se.y;
       prevIdx = placed.buildingIdx;
+    }
+
+    // --- Skyscrapers filling behind the facade rows toward the NE street ---
+    const nwOffset = 4;  // tiles NW (decreasing col) from SE edge
+    const skyCol = blockColEnd - nwOffset;
+    const skyRowStart = blockRowStart + 10; // first skyscraper position (SW of NE street)
+    const skyRowEnd = blockRowEnd;           // behind the SW anchor
+    const skyStride = 8;                     // row spacing between skyscrapers
+
+    for (let row = skyRowStart, i = 0; row <= skyRowEnd; row += skyStride, i++) {
+      const skyPos = isoToScreen(skyCol, row);
+      const skySeed = ((bCol * 48271) ^ (bRow * 65537) ^ (i * 91573)) >>> 0;
+      placeSkyscraper(this, {
+        targetH: TARGET_H,
+        x: skyPos.x,
+        y: skyPos.y,
+        depth: skyCol + row - 5,
+        buildingIdx: skySeed % 3,
+        direction: CompositeDir.SE,
+      });
     }
   }
 

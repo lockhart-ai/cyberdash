@@ -149,7 +149,10 @@ export function pickComposite(seed: number, exclude?: number): number {
 
 /**
  * Pick the largest building that fits within maxAdvance screen-x pixels.
- * "Advance" = distance from south point to SE corner = w * (1 - originX).
+ * chainDir controls which direction we measure advance:
+ *   "se" = south point to SE corner = w * (1 - originX)
+ *   "nw" = south point to SW corner = w * originX
+ * candidates restricts the search to specific building indices.
  * Returns undefined if nothing fits.
  */
 export function pickCompositeFitting(
@@ -158,21 +161,19 @@ export function pickCompositeFitting(
   maxAdvance: number,
   exclude?: number,
   dir: CompositeDir = CompositeDir.SE,
+  chainDir: "se" | "nw" = "se",
+  candidates?: number[],
 ): number | undefined {
   let best: number | undefined;
   let bestAdvance = 0;
 
-  for (let i = 0; i < NUM_BUILDINGS; i++) {
+  const pool = candidates ?? Array.from({ length: NUM_BUILDINGS }, (_, i) => i);
+  for (const i of pool) {
     if (i === exclude) continue;
-    const key = trimKey(i, dir);
-    const frame = scene.textures.getFrame(key);
-    const scale = compositeScale(targetH);
-    const w = frame.width * scale;
-    const ox = getOriginX(i, dir);
-    const advance = w * (1 - ox);
-    if (advance <= maxAdvance && advance > bestAdvance) {
+    const adv = getCompositeAdvance(scene, i, targetH, dir, chainDir);
+    if (adv <= maxAdvance && adv > bestAdvance) {
       best = i;
-      bestAdvance = advance;
+      bestAdvance = adv;
     }
   }
   return best;
@@ -202,8 +203,10 @@ export interface PlacedBuilding {
   img: Phaser.GameObjects.Image;
   /** Tight bounding box in screen space */
   bbox: { left: number; right: number; top: number; bottom: number };
-  /** SE corner of iso footprint — next building's south point goes here */
+  /** SE corner of iso footprint — next building's south point goes here (chaining SE) */
   se: { x: number; y: number };
+  /** SW corner of iso footprint — next building's south point goes here (chaining NW) */
+  sw: { x: number; y: number };
   /** Which building index was placed */
   buildingIdx: number;
 }
@@ -216,21 +219,23 @@ const DEBUG_COLORS = [
 let debugColorIdx = 0;
 
 /**
- * Get a building's "advance" — the screen-x distance from south point to SE corner.
- * This is how much horizontal space the building occupies when chaining.
+ * Get a building's "advance" — the screen-x distance from south point to the
+ * chaining corner. For SE chaining (going right) = w * (1 - originX).
+ * For NW chaining (going left) = w * originX.
  */
 export function getCompositeAdvance(
   scene: Phaser.Scene,
   buildingIdx: number,
   targetH: number,
   dir: CompositeDir = CompositeDir.SE,
+  chainDir: "se" | "nw" = "se",
 ): number {
   const key = trimKey(buildingIdx, dir);
   const frame = scene.textures.getFrame(key);
   const scale = compositeScale(targetH);
   const w = frame.width * scale;
   const ox = getOriginX(buildingIdx, dir);
-  return w * (1 - ox);
+  return chainDir === "se" ? w * (1 - ox) : w * ox;
 }
 
 /**
@@ -288,9 +293,149 @@ export function placeCompositeBuilding(
     bottom: Math.round(y),
   };
 
-  // SE corner screen position (for chaining)
+  // SE corner screen position (for chaining SE/right)
   const seX = bbox.right;
   const seY = y - 0.5 * (bbox.right - x);
 
-  return { img, bbox, se: { x: seX, y: seY }, buildingIdx };
+  // SW corner screen position (for chaining NW/left)
+  const swX = bbox.left;
+  const swY = y - 0.5 * (x - bbox.left);
+
+  return { img, bbox, se: { x: seX, y: seY }, sw: { x: swX, y: swY }, buildingIdx };
+}
+
+// ─── Skyscrapers ──────────────────────────────────────────────────────
+
+const NUM_SKYSCRAPERS = 3;
+const skyOriginXMap = new Map<string, number>();
+let maxSkyTrimmedHeight = 1;
+
+function skyTrimKey(idx: number, dir: CompositeDir): string {
+  return `sky-${idx}-${DIR_SUFFIXES[dir]}`;
+}
+
+export function getSkyOriginX(idx: number, dir: CompositeDir): number {
+  return skyOriginXMap.get(`${idx}-${dir}`) ?? 0.5;
+}
+
+export function skyScale(targetH: number): number {
+  return targetH / maxSkyTrimmedHeight;
+}
+
+/**
+ * Trim skyscraper spritesheets the same way as composite buildings.
+ * Call once in BootScene.create() after loading.
+ */
+export function trimSkyscrapers(scene: Phaser.Scene): void {
+  for (let b = 0; b < NUM_SKYSCRAPERS; b++) {
+    const srcKey = `sky-${b}`;
+    for (let d = 0; d < 4; d++) {
+      const frame = scene.textures.getFrame(srcKey, d);
+      const src = frame.source.image as HTMLImageElement;
+
+      const tmp = document.createElement("canvas");
+      tmp.width = frame.cutWidth;
+      tmp.height = frame.cutHeight;
+      const ctx = tmp.getContext("2d")!;
+      ctx.drawImage(
+        src,
+        frame.cutX, frame.cutY, frame.cutWidth, frame.cutHeight,
+        0, 0, frame.cutWidth, frame.cutHeight,
+      );
+
+      const imgData = ctx.getImageData(0, 0, tmp.width, tmp.height);
+      const px = imgData.data;
+      let tLeft = tmp.width, tRight = 0, tTop = tmp.height, tBottom = 0;
+
+      for (let y = 0; y < tmp.height; y++) {
+        for (let x = 0; x < tmp.width; x++) {
+          if (px[(y * tmp.width + x) * 4 + 3] > 10) {
+            if (x < tLeft) tLeft = x;
+            if (x > tRight) tRight = x;
+            if (y < tTop) tTop = y;
+            if (y > tBottom) tBottom = y;
+          }
+        }
+      }
+
+      let southSumX = 0;
+      let southCount = 0;
+      for (let x = 0; x < tmp.width; x++) {
+        if (px[(tBottom * tmp.width + x) * 4 + 3] > 10) {
+          southSumX += x;
+          southCount++;
+        }
+      }
+      const southX = southCount > 0 ? southSumX / southCount : (tLeft + tRight) / 2;
+
+      const tw = tRight - tLeft + 1;
+      const th = tBottom - tTop + 1;
+      const cropped = document.createElement("canvas");
+      cropped.width = tw;
+      cropped.height = th;
+      const cCtx = cropped.getContext("2d")!;
+      cCtx.drawImage(tmp, tLeft, tTop, tw, th, 0, 0, tw, th);
+
+      const southXInCropped = southX - tLeft;
+      const originX = southXInCropped / tw;
+
+      const key = skyTrimKey(b, d as CompositeDir);
+      skyOriginXMap.set(`${b}-${d}`, originX);
+      scene.textures.addCanvas(key, cropped);
+
+      if (th > maxSkyTrimmedHeight) maxSkyTrimmedHeight = th;
+    }
+  }
+  console.log(`[Skyscraper] Trimmed ${NUM_SKYSCRAPERS * 4} frames, maxH=${maxSkyTrimmedHeight}`);
+}
+
+export interface SkyPlaced {
+  img: Phaser.GameObjects.Image;
+  bbox: { left: number; right: number; top: number; bottom: number };
+  se: { x: number; y: number };
+  sw: { x: number; y: number };
+  buildingIdx: number;
+}
+
+/**
+ * Place a skyscraper into the scene.
+ * Same origin/placement logic as composite buildings.
+ */
+export function placeSkyscraper(
+  scene: Phaser.Scene,
+  config: {
+    targetH: number;
+    x: number;
+    y: number;
+    depth: number;
+    buildingIdx: number;
+    direction?: CompositeDir;
+  },
+): SkyPlaced {
+  const dir = config.direction ?? CompositeDir.SE;
+  const { targetH, x, y, depth, buildingIdx } = config;
+
+  const key = skyTrimKey(buildingIdx, dir);
+  const originX = getSkyOriginX(buildingIdx, dir);
+  const frame = scene.textures.getFrame(key);
+  const scale = skyScale(targetH);
+  const w = frame.width * scale;
+  const h = frame.height * scale;
+
+  const img = scene.add.image(x, y, key);
+  img.setOrigin(originX, 1).setScale(scale).setDepth(depth);
+
+  const bbox = {
+    left: Math.round(x - w * originX),
+    right: Math.round(x + w * (1 - originX)),
+    top: Math.round(y - h),
+    bottom: Math.round(y),
+  };
+
+  const seX = bbox.right;
+  const seY = y - 0.5 * (bbox.right - x);
+  const swX = bbox.left;
+  const swY = y - 0.5 * (x - bbox.left);
+
+  return { img, bbox, se: { x: seX, y: seY }, sw: { x: swX, y: swY }, buildingIdx };
 }
