@@ -6,7 +6,7 @@ import { ASSET_CATALOG } from "../config/assetCatalog";
 import { renderBuilding, renderBuildingFootprint, dumpBuildingMetrics } from "../rendering/BuildingRenderer";
 import { renderStreetTile, renderSidewalkTile } from "../rendering/StreetRenderer";
 import { placeBuildingA, LAYER_OVERLAP } from "../rendering/BuildingTypeA";
-import { placeCompositeBuilding, pickComposite, pickCompositeFitting, getCompositeWidth, CompositeDir } from "../rendering/CompositeBuilding";
+import { placeCompositeBuilding, pickComposite, pickCompositeFitting, getCompositeAdvance, CompositeDir } from "../rendering/CompositeBuilding";
 
 type Direction =
   | "south"
@@ -634,11 +634,13 @@ export class GameScene extends Phaser.Scene {
 
       const seed = ((bCol * 73856093) ^ (bRow * 19349669) ^ (i * 83492791)) >>> 0;
 
-      // First two buildings: random pick. After that: largest that fits.
-      let useIdx: number | undefined;
-      if (i >= 2) {
-        useIdx = pickCompositeFitting(this, TARGET_H, remaining, prevIdx);
-        if (useIdx === undefined) break;
+      // Pick a random building, but verify it fits. If not, pick the largest that fits.
+      let chosenIdx = pickComposite(seed, prevIdx);
+      const advance = getCompositeAdvance(this, chosenIdx, TARGET_H);
+      if (advance > remaining) {
+        const fitting = pickCompositeFitting(this, TARGET_H, remaining, prevIdx);
+        if (fitting === undefined) break;
+        chosenIdx = fitting;
       }
 
       const placed = placeCompositeBuilding(this, {
@@ -648,6 +650,7 @@ export class GameScene extends Phaser.Scene {
         depth: blockColEnd + blockRowEnd + 10 - i,
         seed,
         exclude: prevIdx,
+        buildingIdx: chosenIdx,
       });
 
       southX = placed.se.x;

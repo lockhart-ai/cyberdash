@@ -194,6 +194,8 @@ export interface CompositeBuildingConfig {
   showLabel?: boolean;
   /** Building index to exclude (prevent adjacent duplicates) */
   exclude?: number;
+  /** Force a specific building index (skip random pick) */
+  buildingIdx?: number;
 }
 
 export interface PlacedBuilding {
@@ -212,6 +214,24 @@ const DEBUG_COLORS = [
   0xffff00, 0x00ffff, 0xff8800, 0x88ff00,
 ];
 let debugColorIdx = 0;
+
+/**
+ * Get a building's "advance" — the screen-x distance from south point to SE corner.
+ * This is how much horizontal space the building occupies when chaining.
+ */
+export function getCompositeAdvance(
+  scene: Phaser.Scene,
+  buildingIdx: number,
+  targetH: number,
+  dir: CompositeDir = CompositeDir.SE,
+): number {
+  const key = trimKey(buildingIdx, dir);
+  const frame = scene.textures.getFrame(key);
+  const scale = compositeScale(targetH);
+  const w = frame.width * scale;
+  const ox = getOriginX(buildingIdx, dir);
+  return w * (1 - ox);
+}
 
 /**
  * Get the rendered width of a trimmed building at a given targetH.
@@ -248,7 +268,7 @@ export function placeCompositeBuilding(
   const { targetH, x, y, depth, seed, showLabel, exclude } = config;
   const dir = config.direction ?? CompositeDir.SE;
 
-  const buildingIdx = pickComposite(seed, exclude);
+  const buildingIdx = config.buildingIdx ?? pickComposite(seed, exclude);
   const key = trimKey(buildingIdx, dir);
   const originX = getOriginX(buildingIdx, dir);
   const frame = scene.textures.getFrame(key);
