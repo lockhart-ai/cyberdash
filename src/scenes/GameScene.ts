@@ -59,9 +59,9 @@ export class GameScene extends Phaser.Scene {
   private runAccel = 2400;
   private runDrag = 2000;
 
-  // Map settings
-  private readonly mapCols = 3 * COL_PERIOD;
-  private readonly mapRows = 3 * ROW_PERIOD;
+  // Map settings — 5×5 blocks (1 perimeter on each end + 3 inner per dimension)
+  private readonly mapCols = 5 * COL_PERIOD;
+  private readonly mapRows = 5 * ROW_PERIOD;
 
   constructor() {
     super({ key: "GameScene" });
@@ -90,9 +90,9 @@ export class GameScene extends Phaser.Scene {
     //   }
     // }
 
-    // Spawn player on a street tile
-    const spawnCol = 4 + COL_PERIOD;
-    const spawnRow = 4;
+    // Spawn player on a street tile (center of inner 3×3 area)
+    const spawnCol = 4 + 2 * COL_PERIOD;
+    const spawnRow = 4 + 2 * ROW_PERIOD;
     const { x: spawnX, y: spawnY } = isoToScreen(spawnCol, spawnRow);
 
     this.player = this.add.sprite(spawnX, spawnY, "player-south");
@@ -104,6 +104,9 @@ export class GameScene extends Phaser.Scene {
     playerBody.setOffset(16, 36);
 
     this.physics.add.collider(this.player, this.walls);
+
+    // Perimeter boundary walls — invisible static bodies at building edges
+    this.addPerimeterWalls();
 
     // Camera
     this.cameras.main.setZoom(1.5);
@@ -205,6 +208,7 @@ export class GameScene extends Phaser.Scene {
     const feetY = this.player.y + this.player.displayHeight / 2;
     const playerDepth = feetY / (TILE_H / 2);
     this.player.setDepth(playerDepth);
+
   }
 
   private getDirection(dx: number, dy: number): Direction {
@@ -219,6 +223,40 @@ export class GameScene extends Phaser.Scene {
     return this.facing;
   }
 
+  /**
+   * Place invisible static physics bodies along the 4 perimeter building edges
+   * to keep the player inside the inner 3×3 walkable area.
+   */
+  private addPerimeterWalls() {
+    const minCol = COL_PERIOD - SIDEWALK_WIDTH; // 34
+    const maxCol = 4 * COL_PERIOD + BLOCK_INTERIOR.colStart; // 174
+    const minRow = ROW_PERIOD - SIDEWALK_WIDTH; // 54
+    const maxRow = 4 * ROW_PERIOD + BLOCK_INTERIOR.rowStart; // 254
+
+    // Place wall bodies every 2 tiles along each edge
+    const STEP = 2;
+
+    // NW col edge (low col boundary) and SE col edge (high col boundary)
+    for (let row = minRow; row <= maxRow; row += STEP) {
+      for (const col of [minCol, maxCol]) {
+        const { x, y } = isoToScreen(col, row);
+        const zone = this.add.zone(x, y, TILE_W * 0.5, TILE_H * 0.5);
+        this.physics.add.existing(zone, true);
+        this.walls.add(zone);
+      }
+    }
+
+    // NW row edge (low row boundary) and SE row edge (high row boundary)
+    for (let col = minCol; col <= maxCol; col += STEP) {
+      for (const row of [minRow, maxRow]) {
+        const { x, y } = isoToScreen(col, row);
+        const zone = this.add.zone(x, y, TILE_W * 0.5, TILE_H * 0.5);
+        this.physics.add.existing(zone, true);
+        this.walls.add(zone);
+      }
+    }
+  }
+
   private generateCityMap(): number[][] {
     const map: number[][] = [];
 
@@ -230,7 +268,15 @@ export class GameScene extends Phaser.Scene {
         const inStreetCol = colMod < STREET_WIDTH;
         const inStreetRow = rowMod < STREET_WIDTH;
 
-        if (inStreetCol || inStreetRow) {
+        // Perimeter blocks (first & last in each dimension): suppress cross-streets
+        const isPerimCol =
+          col < COL_PERIOD || col >= this.mapCols - COL_PERIOD;
+        const isPerimRow =
+          row < ROW_PERIOD || row >= this.mapRows - ROW_PERIOD;
+        const suppressStreet =
+          (isPerimCol && inStreetRow) || (isPerimRow && inStreetCol);
+
+        if (!suppressStreet && (inStreetCol || inStreetRow)) {
           map[row][col] = TileType.STREET;
         } else {
           const colEdge =
@@ -422,7 +468,23 @@ export class GameScene extends Phaser.Scene {
     const numBlockRows = Math.floor(this.mapRows / ROW_PERIOD);
     for (let bCol = 0; bCol < numBlockCols; bCol++) {
       for (let bRow = 0; bRow < numBlockRows; bRow++) {
-        this.placeBlockComposites(bCol, bRow);
+        const isPerimCol = bCol === 0 || bCol === numBlockCols - 1;
+        const isPerimRow = bRow === 0 || bRow === numBlockRows - 1;
+        const opts: { seRowStart?: number; swColStart?: number } = {};
+
+        // Perimeter col: extend SE chain to fill gaps between blocks
+        if (isPerimCol && bRow > 0) {
+          opts.seRowStart =
+            (bRow - 1) * ROW_PERIOD + BLOCK_INTERIOR.rowEnd + 1;
+        }
+
+        // Perimeter row: extend SW chain to fill gaps between blocks
+        if (isPerimRow && bCol > 0) {
+          opts.swColStart =
+            (bCol - 1) * COL_PERIOD + BLOCK_INTERIOR.colEnd + 1;
+        }
+
+        this.placeBlockComposites(bCol, bRow, opts);
       }
     }
   }
@@ -433,7 +495,11 @@ export class GameScene extends Phaser.Scene {
    * 2. Chain SW facades NW (screen-left) from anchor's SW corner
    * 3. Chain SE buildings SE (screen-right) from anchor's SE corner
    */
-  private placeBlockComposites(bCol: number, bRow: number) {
+  private placeBlockComposites(
+    bCol: number,
+    bRow: number,
+    opts?: { seRowStart?: number; swColStart?: number },
+  ) {
     const TARGET_H = 800;
 
     const blockColEnd = bCol * COL_PERIOD + BLOCK_INTERIOR.colEnd;
@@ -479,10 +545,24 @@ export class GameScene extends Phaser.Scene {
         buildingIdx: anchor.buildingIdx,
         buildingImages: [anchor.img],
       });
+      // Neon signs on anchor's SW wall
+      placeNeonSigns(this, {
+        seed: anchorSeed + 1000,
+        id: `comp-anchor-sw-${bCol}-${bRow}`,
+        edgeStart: anchor.sw,
+        edgeEnd: { x: startPos.x, y: startPos.y },
+        numFloors: anchorSignFloors,
+        floorHeight: STORY_HEIGHT,
+        depth: anchor.img.depth,
+        buildingIdx: anchor.buildingIdx,
+        buildingImages: [anchor.img],
+        wall: "sw",
+      });
     }
 
     // --- Chain SW facades NW (screen-left) from anchor's SW corner ---
-    const nwLimitX = isoToScreen(blockColStart, blockRowEnd).x;
+    const swChainColStart = opts?.swColStart ?? blockColStart;
+    const nwLimitX = isoToScreen(swChainColStart, blockRowEnd).x;
     let southX = anchor.sw.x;
     let southY = anchor.sw.y;
     let prevIdx: number | undefined = anchor.buildingIdx;
@@ -546,6 +626,19 @@ export class GameScene extends Phaser.Scene {
           buildingIdx: placed.buildingIdx,
           buildingImages: [placed.img],
         });
+        // Neon signs on SW facade's SW wall (main facade)
+        placeNeonSigns(this, {
+          seed: seed + 1000,
+          id: `comp-sw-main-${bCol}-${bRow}-${i}`,
+          edgeStart: placed.sw,
+          edgeEnd: { x: swPlacedX, y: swPlacedY },
+          numFloors: swSignFloors,
+          floorHeight: STORY_HEIGHT,
+          depth: placed.img.depth,
+          buildingIdx: placed.buildingIdx,
+          buildingImages: [placed.img],
+          wall: "sw",
+        });
       }
 
       southX = placed.sw.x;
@@ -555,7 +648,8 @@ export class GameScene extends Phaser.Scene {
 
     // --- Chain SE buildings SE (screen-right) from anchor's SE corner ---
     // The anchor SW building is the first building in the SE chain.
-    const seLimitX = isoToScreen(blockColEnd, blockRowStart).x;
+    const seChainRowStart = opts?.seRowStart ?? blockRowStart;
+    const seLimitX = isoToScreen(blockColEnd, seChainRowStart).x;
     southX = anchor.se.x;
     southY = anchor.se.y;
     prevIdx = anchor.buildingIdx;

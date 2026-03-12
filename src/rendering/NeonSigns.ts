@@ -1,23 +1,27 @@
-import Phaser from "phaser";
-import { buildingHash } from "./BuildingTypes";
+import type Phaser from "phaser";
 import { BILLBOARD_SE_KEYS, BILLBOARD_SW_KEYS } from "./BillboardTrim";
+import { buildingHash } from "./BuildingTypes";
 import { addDebugText } from "./debugOverlay";
 
 /** Composite building indices (CPC-N) that have geometry too complex for neon signs */
-const NO_SIGN_BUILDINGS = new Set<number>([
-  3,
-]);
+const NO_SIGN_BUILDINGS = new Set<number>([3]);
 
 /** Max sign stories per building index. If not listed, uses numFloors as-is. */
 const MAX_SIGN_STORIES = new Map<number, number>([
-  [0, 1],  // cpc-0: 2-story building
-  [1, 2],  // cpc-1: 3-story building
-  [4, 1],  // cpc-4: 2-story building
+  [0, 1], // cpc-0: 2-story building
+  [1, 2], // cpc-1: 3-story building
+  [4, 1], // cpc-4: 2-story building
 ]);
 
-const alphaCache = new Map<string, { data: Uint8ClampedArray; w: number; h: number }>();
+const alphaCache = new Map<
+  string,
+  { data: Uint8ClampedArray; w: number; h: number }
+>();
 
-function getAlphaData(scene: Phaser.Scene, textureKey: string): { data: Uint8ClampedArray; w: number; h: number } | null {
+function getAlphaData(
+  scene: Phaser.Scene,
+  textureKey: string,
+): { data: Uint8ClampedArray; w: number; h: number } | null {
   const cached = alphaCache.get(textureKey);
   if (cached) return cached;
   const tex = scene.textures.get(textureKey);
@@ -67,6 +71,8 @@ export interface NeonSignConfig {
   buildingIdx?: number;
   /** Building images for per-sign alpha occlusion check */
   buildingImages?: Phaser.GameObjects.Image[];
+  /** Which wall face the signs are on. Defaults to 'se'. */
+  wall?: "se" | "sw";
 }
 
 /**
@@ -79,18 +85,34 @@ export function placeNeonSigns(
   scene: Phaser.Scene,
   config: NeonSignConfig,
 ): Phaser.GameObjects.GameObject[] {
-  const { seed, edgeStart, edgeEnd, numFloors, floorHeight, depth, buildingIdx, buildingImages } = config;
+  const {
+    seed,
+    edgeStart,
+    edgeEnd,
+    numFloors,
+    floorHeight,
+    depth,
+    buildingIdx,
+    buildingImages,
+  } = config;
   const objects: Phaser.GameObjects.GameObject[] = [];
 
   if (numFloors <= 0) return objects;
-  if (buildingIdx !== undefined && NO_SIGN_BUILDINGS.has(buildingIdx)) return objects;
+  if (buildingIdx !== undefined && NO_SIGN_BUILDINGS.has(buildingIdx))
+    return objects;
+
+  const isSW = config.wall === "sw";
+  const protrudingKeys = isSW ? BILLBOARD_SE_KEYS : BILLBOARD_SW_KEYS;
+  const flushKeys = isSW ? BILLBOARD_SW_KEYS : BILLBOARD_SE_KEYS;
+  const protrudeDir = isSW ? -1 : 1;
 
   const edgeLen = edgeEnd.x - edgeStart.x;
   if (edgeLen < 100) return objects;
 
-  const maxFloors = buildingIdx !== undefined && MAX_SIGN_STORIES.has(buildingIdx)
-    ? Math.min(numFloors, MAX_SIGN_STORIES.get(buildingIdx)!)
-    : numFloors;
+  const maxFloors =
+    buildingIdx !== undefined && MAX_SIGN_STORIES.has(buildingIdx)
+      ? Math.min(numFloors, MAX_SIGN_STORIES.get(buildingIdx)!)
+      : numFloors;
 
   for (let floor = 1; floor <= maxFloors; floor++) {
     const floorY = floor * floorHeight;
@@ -103,7 +125,7 @@ export function placeNeonSigns(
     const numProto = floorEdgeW > 300 ? 2 : 1;
     const protoSlotW = floorEdgeW / numProto;
     const numFlush = floorEdgeW > 300 ? 4 : 2;
-    const flushPerProto = numFlush / numProto;  // flush slots per proto region
+    const flushPerProto = numFlush / numProto; // flush slots per proto region
     const skipFlushSlots = new Set<number>();
 
     for (let slot = 0; slot < numProto; slot++) {
@@ -144,26 +166,37 @@ export function placeNeonSigns(
         skipFlushSlots.add(rightmostFlush);
       }
 
-      const pcx = px0 + pw / 2;
+      const pcx = px0 + protrudeDir * pw / 2;
       const pcy = py0 + pw * 0.25 - ph / 2;
 
-      if (BILLBOARD_SW_KEYS.length > 0) {
-        const pbbIdx = Math.floor(buildingHash(seed, 250 + floor * 3 + slot) * BILLBOARD_SW_KEYS.length);
-        const pbbKey = BILLBOARD_SW_KEYS[pbbIdx];
+      if (protrudingKeys.length > 0) {
+        const pbbIdx = Math.floor(
+          buildingHash(seed, 250 + floor * 3 + slot) * protrudingKeys.length,
+        );
+        const pbbKey = protrudingKeys[pbbIdx];
         const ptex = scene.textures.get(pbbKey);
         if (ptex && ptex.key !== "__MISSING") {
-          const ptexSrc = ptex.getSourceImage() as HTMLImageElement | HTMLCanvasElement;
-          if (ptexSrc && ptexSrc.width && ptexSrc.height) {
+          const ptexSrc = ptex.getSourceImage() as
+            | HTMLImageElement
+            | HTMLCanvasElement;
+          if (ptexSrc?.width && ptexSrc.height) {
             const pbboxW = pw;
             const pbboxH = ph + pw * 0.5;
-            const pscale = Math.min(pbboxW / ptexSrc.width, pbboxH / ptexSrc.height);
+            const pscale = Math.min(
+              pbboxW / ptexSrc.width,
+              pbboxH / ptexSrc.height,
+            );
             const pimg = scene.add.image(pcx, pcy, pbbKey);
             pimg.setOrigin(0.5, 0.5);
             pimg.setScale(pscale);
             pimg.setDepth(depth + 0.19);
             objects.push(pimg);
-            const pLabel = scene.add.text(pcx, pcy, pbbKey, { fontSize: "14px", color: "#00ccff", backgroundColor: "#000c" });
-            pLabel.setOrigin(0.5, 0.5).setDepth(depth + 0.20);
+            const pLabel = scene.add.text(pcx, pcy, pbbKey, {
+              fontSize: "14px",
+              color: "#00ccff",
+              backgroundColor: "#000c",
+            });
+            pLabel.setOrigin(0.5, 0.5).setDepth(depth + 0.2);
             addDebugText(pLabel);
           }
         }
@@ -186,28 +219,41 @@ export function placeNeonSigns(
       if (fw < 20 || fh < 10) continue;
 
       const fx = sF.x + midT * (eF.x - sF.x) - fw / 2;
-      const fy = sF.y + midT * (eF.y - sF.y) + fw / 2 * 0.5;
+      const fy = sF.y + midT * (eF.y - sF.y) + (fw / 2) * 0.5;
       const fcx = fx + fw / 2;
       const fcy = fy - fw * 0.25 - fh / 2;
 
-      const flushOccluded = !buildingImages || buildingImages.length === 0 ||
+      const flushOccluded =
+        !buildingImages ||
+        buildingImages.length === 0 ||
         isOccludedByBuilding(scene, fcx, fcy, buildingImages);
-      if (flushOccluded && BILLBOARD_SE_KEYS.length > 0) {
-        const fbbIdx = Math.floor(buildingHash(seed, 200 + floor * 4 + slot) * BILLBOARD_SE_KEYS.length);
-        const fbbKey = BILLBOARD_SE_KEYS[fbbIdx];
+      if (flushOccluded && flushKeys.length > 0) {
+        const fbbIdx = Math.floor(
+          buildingHash(seed, 200 + floor * 4 + slot) * flushKeys.length,
+        );
+        const fbbKey = flushKeys[fbbIdx];
         const ftex = scene.textures.get(fbbKey);
         if (ftex && ftex.key !== "__MISSING") {
-          const ftexSrc = ftex.getSourceImage() as HTMLImageElement | HTMLCanvasElement;
-          if (ftexSrc && ftexSrc.width && ftexSrc.height) {
+          const ftexSrc = ftex.getSourceImage() as
+            | HTMLImageElement
+            | HTMLCanvasElement;
+          if (ftexSrc?.width && ftexSrc.height) {
             const fbboxW = fw;
             const fbboxH = fh + fw * 0.5;
-            const fscale = Math.min(fbboxW / ftexSrc.width, fbboxH / ftexSrc.height);
+            const fscale = Math.min(
+              fbboxW / ftexSrc.width,
+              fbboxH / ftexSrc.height,
+            );
             const fimg = scene.add.image(fcx, fcy, fbbKey);
             fimg.setOrigin(0.5, 0.5);
             fimg.setScale(fscale);
             fimg.setDepth(depth + 0.13);
             objects.push(fimg);
-            const fLabel = scene.add.text(fcx, fcy, fbbKey, { fontSize: "14px", color: "#00ccff", backgroundColor: "#000c" });
+            const fLabel = scene.add.text(fcx, fcy, fbbKey, {
+              fontSize: "14px",
+              color: "#00ccff",
+              backgroundColor: "#000c",
+            });
             fLabel.setOrigin(0.5, 0.5).setDepth(depth + 0.14);
             addDebugText(fLabel);
           }
