@@ -1,4 +1,4 @@
-import Phaser from "phaser";
+import type Phaser from "phaser";
 
 /**
  * Billboard trim: extract frame 0 (SE-facing, flush) and frame 3 (SW-facing, protruding)
@@ -37,13 +37,22 @@ function trimFrame(
   const ctx = tmp.getContext("2d")!;
   ctx.drawImage(
     src,
-    frame.cutX, frame.cutY, frame.cutWidth, frame.cutHeight,
-    0, 0, frame.cutWidth, frame.cutHeight,
+    frame.cutX,
+    frame.cutY,
+    frame.cutWidth,
+    frame.cutHeight,
+    0,
+    0,
+    frame.cutWidth,
+    frame.cutHeight,
   );
 
   const imgData = ctx.getImageData(0, 0, tmp.width, tmp.height);
   const px = imgData.data;
-  let tLeft = tmp.width, tRight = 0, tTop = tmp.height, tBottom = 0;
+  let tLeft = tmp.width,
+    tRight = 0,
+    tTop = tmp.height,
+    tBottom = 0;
 
   for (let y = 0; y < tmp.height; y++) {
     for (let x = 0; x < tmp.width; x++) {
@@ -99,5 +108,7 @@ export function trimBillboards(scene: Phaser.Scene): void {
       swCount++;
     }
   }
-  console.log(`[BillboardTrim] Trimmed billboards: ${seCount} SE, ${swCount} SW`);
+  console.log(
+    `[BillboardTrim] Trimmed billboards: ${seCount} SE, ${swCount} SW`,
+  );
 }

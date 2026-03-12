@@ -1,6 +1,6 @@
-import Phaser from "phaser";
-import { addDebugGraphics, addDebugText } from "./debugOverlay";
+import type Phaser from "phaser";
 import { CYBERDARK_TINT } from "./BuildingTypes";
+import { addDebugGraphics, addDebugText } from "./debugOverlay";
 
 /**
  * Traditional Asian Heritage stackable buildings.
@@ -30,38 +30,38 @@ function mulberry32(seed: number): () => number {
 
 // Square-footprint floors only (fw ~873, ratio ~1.33-1.36)
 const FLOORS = [
-  "tac-65",  // Building_A Floor_A
-  "tac-57",  // Building_B floor_A
-  "tac-59",  // Building_B floor_C
-  "tac-61",  // Building_B floor_D
-  "tac-53",  // Building_E floor_A
-  "tac-54",  // Building_E floor_B
-  "tac-49",  // Building_F floor_A
-  "tac-31",  // Building_O floor_A
-  "tac-30",  // Building_O floor_B
-  "tac-29",  // Building_O floor_C
-  "tac-28",  // Building_O floor_D
-  "tac-21",  // Building_P floor_A
-  "tac-23",  // Building_P floor_B
+  "tac-65", // Building_A Floor_A
+  "tac-57", // Building_B floor_A
+  "tac-59", // Building_B floor_C
+  "tac-61", // Building_B floor_D
+  "tac-53", // Building_E floor_A
+  "tac-54", // Building_E floor_B
+  "tac-49", // Building_F floor_A
+  "tac-31", // Building_O floor_A
+  "tac-30", // Building_O floor_B
+  "tac-29", // Building_O floor_C
+  "tac-28", // Building_O floor_D
+  "tac-21", // Building_P floor_A
+  "tac-23", // Building_P floor_B
 ];
 
 // Roofs compatible with square-footprint floors
 const ROOFS = [
-  "tac-62",  // Building_A roof_A
-  "tac-56",  // Building_B roof_A
-  "tac-58",  // Building_B roof_C
-  "tac-60",  // Building_B roof_D
-  "tac-52",  // Building_E roof_A
-  "tac-48",  // Building_F roof_A
-  "tac-26",  // Building_O roof_A
-  "tac-25",  // Building_O roof_D
-  "tac-20",  // Building_P roof_A
-  "tac-22",  // Building_P roof_B
+  "tac-62", // Building_A roof_A
+  "tac-56", // Building_B roof_A
+  "tac-58", // Building_B roof_C
+  "tac-60", // Building_B roof_D
+  "tac-52", // Building_E roof_A
+  "tac-48", // Building_F roof_A
+  "tac-26", // Building_O roof_A
+  "tac-25", // Building_O roof_D
+  "tac-20", // Building_P roof_A
+  "tac-22", // Building_P roof_B
 ];
 
 const ALL_MODULES = [...FLOORS, ...ROOFS];
 
-export const LAYER_OVERLAP = 0.30;
+export const LAYER_OVERLAP = 0.3;
 
 /** Per-module origin X (south point fraction), keyed by source key */
 const originXMap = new Map<string, number>();
@@ -89,13 +89,22 @@ export function trimAsianModules(scene: Phaser.Scene): void {
     const ctx = tmp.getContext("2d")!;
     ctx.drawImage(
       src,
-      frame.cutX, frame.cutY, frame.cutWidth, frame.cutHeight,
-      0, 0, frame.cutWidth, frame.cutHeight,
+      frame.cutX,
+      frame.cutY,
+      frame.cutWidth,
+      frame.cutHeight,
+      0,
+      0,
+      frame.cutWidth,
+      frame.cutHeight,
     );
 
     const imgData = ctx.getImageData(0, 0, tmp.width, tmp.height);
     const px = imgData.data;
-    let tLeft = tmp.width, tRight = 0, tTop = tmp.height, tBottom = 0;
+    let tLeft = tmp.width,
+      tRight = 0,
+      tTop = tmp.height,
+      tBottom = 0;
 
     for (let y = 0; y < tmp.height; y++) {
       for (let x = 0; x < tmp.width; x++) {
@@ -117,7 +126,8 @@ export function trimAsianModules(scene: Phaser.Scene): void {
         southCount++;
       }
     }
-    const southX = southCount > 0 ? southSumX / southCount : (tLeft + tRight) / 2;
+    const southX =
+      southCount > 0 ? southSumX / southCount : (tLeft + tRight) / 2;
 
     const tw = tRight - tLeft + 1;
     const th = tBottom - tTop + 1;
@@ -188,7 +198,10 @@ export function placeAsianBuilding(
   let curY = y;
   let se = { x: 0, y: 0 };
   let sw = { x: 0, y: 0 };
-  let bboxLeft = Infinity, bboxRight = -Infinity, bboxTop = Infinity, bboxBottom = -Infinity;
+  let bboxLeft = Infinity,
+    bboxRight = -Infinity,
+    bboxTop = Infinity,
+    bboxBottom = -Infinity;
 
   for (let li = 0; li < layers.length; li++) {
     const key = layers[li];
@@ -207,7 +220,11 @@ export function placeAsianBuilding(
       // Bottom layer: anchor at south point using per-module originX
       const ox = getOriginX(key);
       const img = scene.add.image(x, curY, trimKey);
-      img.setOrigin(ox, 1).setScale(scale).setDepth(depth).setTint(CYBERDARK_TINT);
+      img
+        .setOrigin(ox, 1)
+        .setScale(scale)
+        .setDepth(depth)
+        .setTint(CYBERDARK_TINT);
       images.push(img);
 
       // Compute bbox and chain corners from bottom layer
@@ -223,7 +240,11 @@ export function placeAsianBuilding(
     } else {
       // Upper layers: center on the bottom layer's anchor x
       const img = scene.add.image(x, curY, trimKey);
-      img.setOrigin(0.5, 1).setScale(scale).setDepth(depth).setTint(CYBERDARK_TINT);
+      img
+        .setOrigin(0.5, 1)
+        .setScale(scale)
+        .setDepth(depth)
+        .setTint(CYBERDARK_TINT);
       images.push(img);
 
       const layerLeft = x - w * 0.5;
@@ -249,12 +270,17 @@ export function placeAsianBuilding(
   gfx.fillCircle(sw.x, sw.y, 3);
   addDebugGraphics(gfx);
 
-  const layerLabel = layers.map(k => k.replace("tac-", "")).join(",");
+  const layerLabel = layers.map((k) => k.replace("tac-", "")).join(",");
   const midY = (bboxTop + bboxBottom) / 2;
-  const label = scene.add.text(bboxRight + 4, midY, `TAC[${layerLabel}]`, {
-    fontSize: "10px", color: "#4af", backgroundColor: "#000c",
-    padding: { x: 3, y: 2 },
-  }).setOrigin(0, 0.5).setDepth(depth + 1);
+  const label = scene.add
+    .text(bboxRight + 4, midY, `TAC[${layerLabel}]`, {
+      fontSize: "10px",
+      color: "#4af",
+      backgroundColor: "#000c",
+      padding: { x: 3, y: 2 },
+    })
+    .setOrigin(0, 0.5)
+    .setDepth(depth + 1);
   addDebugText(label);
 
   return { images, se, sw, numFloors: layers.length - 1 };

@@ -3,19 +3,27 @@
  * Used by both the in-browser renderer and CLI measurement scripts.
  */
 
-import { TILE_W, TILE_H, isoToScreen } from "../iso/IsoGeometry";
 import { STORY_HEIGHT } from "../iso/CityLayout";
-import { Building } from "./BuildingTypes";
+import { isoToScreen, TILE_H, TILE_W } from "../iso/IsoGeometry";
+import type { Building } from "./BuildingTypes";
 
-interface Corner { x: number; y: number }
+interface Corner {
+  x: number;
+  y: number;
+}
 
 /**
  * Compute the 4 ground-level corners of a building's iso diamond,
  * compressed inward along the col axis by the inset amount.
  */
-export function buildingCorners(b: Building): { N: Corner; E: Corner; S: Corner; W: Corner } {
-  const insOff = b.inset * TILE_W / 2;
-  const insOffY = b.inset * TILE_H / 2;
+export function buildingCorners(b: Building): {
+  N: Corner;
+  E: Corner;
+  S: Corner;
+  W: Corner;
+} {
+  const insOff = (b.inset * TILE_W) / 2;
+  const insOffY = (b.inset * TILE_H) / 2;
 
   const nBase = isoToScreen(b.colStart, b.rowStart);
   const eBase = isoToScreen(b.colEnd, b.rowStart);
@@ -33,7 +41,11 @@ export function buildingCorners(b: Building): { N: Corner; E: Corner; S: Corner;
 /**
  * Compute the inset-adjusted screen position for a tile within a building.
  */
-export function tileInsetPosition(b: Building, col: number, row: number): Corner {
+export function tileInsetPosition(
+  b: Building,
+  col: number,
+  row: number,
+): Corner {
   const { x, y } = isoToScreen(col, row);
   const span = b.colEnd - b.colStart;
   const relCol = col - b.colStart;
@@ -59,8 +71,8 @@ export interface BuildingMetrics {
   doorTexW: number;
   doorTexH: number;
   windowTexture: number;
-  windowZone: number;    // available width for windows
-  winCount: number;      // number of windows placed
+  windowZone: number; // available width for windows
+  winCount: number; // number of windows placed
   winTexW: number;
   winTexH: number;
   winScale: number;
@@ -72,11 +84,11 @@ export interface BuildingMetrics {
 // Layout constants — shared between renderer and metrics
 // SE wall is divided into a grid of equal-width slots.
 // Each slot holds a door (ground floor) or window. This ensures vertical alignment across floors.
-export const SLOT_WIDTH = 56;   // matches door rendered width
-export const SLOT_GAP = 12;     // gap between slots
-export const WALL_MARGIN = 32;  // margin from wall edges
+export const SLOT_WIDTH = 56; // matches door rendered width
+export const SLOT_GAP = 12; // gap between slots
+export const WALL_MARGIN = 32; // margin from wall edges
 export const WIN_TARGET_H = 96; // target rendered height for windows
-export const WIN_BOTTOM = 30;   // vertical offset above floor baseline
+export const WIN_BOTTOM = 30; // vertical offset above floor baseline
 
 /**
  * Pure-math metrics computation. texSize callback returns {w, h} for a texture key.
@@ -95,7 +107,10 @@ export function computeBuildingMetrics(
 
     const seWallLen = E.x - S.x;
     const usableWidth = seWallLen - 2 * WALL_MARGIN;
-    const numSlots = Math.max(1, Math.floor((usableWidth + SLOT_GAP) / (SLOT_WIDTH + SLOT_GAP)));
+    const numSlots = Math.max(
+      1,
+      Math.floor((usableWidth + SLOT_GAP) / (SLOT_WIDTH + SLOT_GAP)),
+    );
     const doorSlot = b.doorSide === "left" ? 0 : numSlots - 1;
     const totalSlotsWidth = numSlots * SLOT_WIDTH + (numSlots - 1) * SLOT_GAP;
     const gridStart = WALL_MARGIN + (usableWidth - totalSlotsWidth) / 2;
@@ -107,7 +122,7 @@ export function computeBuildingMetrics(
     const win = texSize(`window-${winIdx}`);
 
     // Ground floor window count = all slots minus door slot
-    let winCount = numSlots - 1;
+    const winCount = numSlots - 1;
     let winScale = 0;
     let winRenderedW = 0;
     let winRenderedH = 0;

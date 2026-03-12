@@ -1,6 +1,6 @@
-import Phaser from "phaser";
-import { addDebugGraphics, addDebugText } from "./debugOverlay";
+import type Phaser from "phaser";
 import { CYBERDARK_TINT } from "./BuildingTypes";
+import { addDebugGraphics, addDebugText } from "./debugOverlay";
 
 /** Seeded PRNG (mulberry32) */
 function mulberry32(seed: number): () => number {
@@ -17,7 +17,7 @@ const NUM_BUILDINGS = 16;
 const DIR_SUFFIXES = ["se", "ne", "nw", "sw"];
 
 /** Frame indices: SE=0, NE=1, NW=2, SW=3 */
-export const enum CompositeDir {
+export enum CompositeDir {
   SE = 0,
   NE = 1,
   NW = 2,
@@ -77,14 +77,23 @@ export function trimCompositeBuildings(scene: Phaser.Scene): void {
       const ctx = tmp.getContext("2d")!;
       ctx.drawImage(
         src,
-        frame.cutX, frame.cutY, frame.cutWidth, frame.cutHeight,
-        0, 0, frame.cutWidth, frame.cutHeight,
+        frame.cutX,
+        frame.cutY,
+        frame.cutWidth,
+        frame.cutHeight,
+        0,
+        0,
+        frame.cutWidth,
+        frame.cutHeight,
       );
 
       // Scan for tight opaque bounds
       const imgData = ctx.getImageData(0, 0, tmp.width, tmp.height);
       const px = imgData.data;
-      let tLeft = tmp.width, tRight = 0, tTop = tmp.height, tBottom = 0;
+      let tLeft = tmp.width,
+        tRight = 0,
+        tTop = tmp.height,
+        tBottom = 0;
 
       for (let y = 0; y < tmp.height; y++) {
         for (let x = 0; x < tmp.width; x++) {
@@ -108,7 +117,8 @@ export function trimCompositeBuildings(scene: Phaser.Scene): void {
           southCount++;
         }
       }
-      const southX = southCount > 0 ? southSumX / southCount : (tLeft + tRight) / 2;
+      const southX =
+        southCount > 0 ? southSumX / southCount : (tLeft + tRight) / 2;
 
       // Crop to tight bounds
       const tw = tRight - tLeft + 1;
@@ -130,7 +140,9 @@ export function trimCompositeBuildings(scene: Phaser.Scene): void {
       if (th > maxTrimmedHeight) maxTrimmedHeight = th;
     }
   }
-  console.log(`[CompositeBuilding] Trimmed ${NUM_BUILDINGS * 4} frames, maxH=${maxTrimmedHeight}`);
+  console.log(
+    `[CompositeBuilding] Trimmed ${NUM_BUILDINGS * 4} frames, maxH=${maxTrimmedHeight}`,
+  );
 }
 
 /**
@@ -215,8 +227,8 @@ export interface PlacedBuilding {
 
 /** Bright debug colors to cycle through */
 const DEBUG_COLORS = [
-  0xff0000, 0x00ff00, 0x0000ff, 0xff00ff,
-  0xffff00, 0x00ffff, 0xff8800, 0x88ff00,
+  0xff0000, 0x00ff00, 0x0000ff, 0xff00ff, 0xffff00, 0x00ffff, 0xff8800,
+  0x88ff00,
 ];
 let debugColorIdx = 0;
 
@@ -272,7 +284,7 @@ export function placeCompositeBuilding(
   scene: Phaser.Scene,
   config: CompositeBuildingConfig,
 ): PlacedBuilding {
-  const { targetH, x, y, depth, seed, showLabel, exclude } = config;
+  const { targetH, x, y, depth, seed, exclude } = config;
   const dir = config.direction ?? CompositeDir.SE;
 
   const buildingIdx = config.buildingIdx ?? pickComposite(seed, exclude);
@@ -284,7 +296,11 @@ export function placeCompositeBuilding(
   const h = frame.height * scale;
 
   const img = scene.add.image(x, y, key);
-  img.setOrigin(originX, 1).setScale(scale).setDepth(depth).setTint(CYBERDARK_TINT);
+  img
+    .setOrigin(originX, 1)
+    .setScale(scale)
+    .setDepth(depth)
+    .setTint(CYBERDARK_TINT);
 
   // Bbox from origin: south point is at (x, y),
   // which is originX fraction from the left and at the bottom.
@@ -308,7 +324,12 @@ export function placeCompositeBuilding(
   gfx.setDepth(depth + 1);
   const color = DEBUG_COLORS[debugColorIdx++ % DEBUG_COLORS.length];
   gfx.lineStyle(2, color, 0.8);
-  gfx.strokeRect(bbox.left, bbox.top, bbox.right - bbox.left, bbox.bottom - bbox.top);
+  gfx.strokeRect(
+    bbox.left,
+    bbox.top,
+    bbox.right - bbox.left,
+    bbox.bottom - bbox.top,
+  );
   gfx.fillStyle(0xffffff, 1);
   gfx.fillCircle(x, y, 4);
   gfx.fillStyle(0xff0000, 1);
@@ -318,13 +339,24 @@ export function placeCompositeBuilding(
   addDebugGraphics(gfx);
 
   const midY = (bbox.top + bbox.bottom) / 2;
-  const label = scene.add.text(bbox.right + 4, midY, `CPC-${buildingIdx}`, {
-    fontSize: "12px", color: "#4af", backgroundColor: "#000c",
-    padding: { x: 3, y: 2 },
-  }).setOrigin(0, 0.5).setDepth(depth + 1);
+  const label = scene.add
+    .text(bbox.right + 4, midY, `CPC-${buildingIdx}`, {
+      fontSize: "12px",
+      color: "#4af",
+      backgroundColor: "#000c",
+      padding: { x: 3, y: 2 },
+    })
+    .setOrigin(0, 0.5)
+    .setDepth(depth + 1);
   addDebugText(label);
 
-  return { img, bbox, se: { x: seX, y: seY }, sw: { x: swX, y: swY }, buildingIdx };
+  return {
+    img,
+    bbox,
+    se: { x: seX, y: seY },
+    sw: { x: swX, y: swY },
+    buildingIdx,
+  };
 }
 
 // ─── Skyscrapers ──────────────────────────────────────────────────────
@@ -362,13 +394,22 @@ export function trimSkyscrapers(scene: Phaser.Scene): void {
       const ctx = tmp.getContext("2d")!;
       ctx.drawImage(
         src,
-        frame.cutX, frame.cutY, frame.cutWidth, frame.cutHeight,
-        0, 0, frame.cutWidth, frame.cutHeight,
+        frame.cutX,
+        frame.cutY,
+        frame.cutWidth,
+        frame.cutHeight,
+        0,
+        0,
+        frame.cutWidth,
+        frame.cutHeight,
       );
 
       const imgData = ctx.getImageData(0, 0, tmp.width, tmp.height);
       const px = imgData.data;
-      let tLeft = tmp.width, tRight = 0, tTop = tmp.height, tBottom = 0;
+      let tLeft = tmp.width,
+        tRight = 0,
+        tTop = tmp.height,
+        tBottom = 0;
 
       for (let y = 0; y < tmp.height; y++) {
         for (let x = 0; x < tmp.width; x++) {
@@ -389,7 +430,8 @@ export function trimSkyscrapers(scene: Phaser.Scene): void {
           southCount++;
         }
       }
-      const southX = southCount > 0 ? southSumX / southCount : (tLeft + tRight) / 2;
+      const southX =
+        southCount > 0 ? southSumX / southCount : (tLeft + tRight) / 2;
 
       const tw = tRight - tLeft + 1;
       const th = tBottom - tTop + 1;
@@ -409,7 +451,9 @@ export function trimSkyscrapers(scene: Phaser.Scene): void {
       if (th > maxSkyTrimmedHeight) maxSkyTrimmedHeight = th;
     }
   }
-  console.log(`[Skyscraper] Trimmed ${NUM_SKYSCRAPERS * 4} frames, maxH=${maxSkyTrimmedHeight}`);
+  console.log(
+    `[Skyscraper] Trimmed ${NUM_SKYSCRAPERS * 4} frames, maxH=${maxSkyTrimmedHeight}`,
+  );
 }
 
 export interface SkyPlaced {
@@ -446,7 +490,11 @@ export function placeSkyscraper(
   const h = frame.height * scale;
 
   const img = scene.add.image(x, y, key);
-  img.setOrigin(originX, 1).setScale(scale).setDepth(depth).setTint(CYBERDARK_TINT);
+  img
+    .setOrigin(originX, 1)
+    .setScale(scale)
+    .setDepth(depth)
+    .setTint(CYBERDARK_TINT);
 
   const bbox = {
     left: Math.round(x - w * originX),
@@ -465,7 +513,12 @@ export function placeSkyscraper(
   skyGfx.setDepth(depth + 1);
   const skyColor = DEBUG_COLORS[debugColorIdx++ % DEBUG_COLORS.length];
   skyGfx.lineStyle(2, skyColor, 0.8);
-  skyGfx.strokeRect(bbox.left, bbox.top, bbox.right - bbox.left, bbox.bottom - bbox.top);
+  skyGfx.strokeRect(
+    bbox.left,
+    bbox.top,
+    bbox.right - bbox.left,
+    bbox.bottom - bbox.top,
+  );
   skyGfx.fillStyle(0xffffff, 1);
   skyGfx.fillCircle(x, y, 4);
   skyGfx.fillStyle(0xff0000, 1);
@@ -474,5 +527,11 @@ export function placeSkyscraper(
   skyGfx.fillCircle(swX, swY, 4);
   addDebugGraphics(skyGfx);
 
-  return { img, bbox, se: { x: seX, y: seY }, sw: { x: swX, y: swY }, buildingIdx };
+  return {
+    img,
+    bbox,
+    se: { x: seX, y: seY },
+    sw: { x: swX, y: swY },
+    buildingIdx,
+  };
 }

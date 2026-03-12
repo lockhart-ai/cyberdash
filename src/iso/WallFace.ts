@@ -5,7 +5,7 @@
 //   SE wall = visible on RIGHT side of building (E-to-S edge of iso diamond, storefront)
 //   NW/NE = back walls (hidden by depth sorting, rendered as images)
 
-import { TILE_W, TILE_H } from "./IsoGeometry";
+import { TILE_H, TILE_W } from "./IsoGeometry";
 
 export enum WallFaceId {
   SW = "SW", // left-visible wall, W-to-N edge, slope -0.5 going right

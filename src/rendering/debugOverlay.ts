@@ -3,7 +3,9 @@ let labelsVisible = false;
 const boxObjects: Phaser.GameObjects.Graphics[] = [];
 const labelObjects: Phaser.GameObjects.Text[] = [];
 
-export function isDebugVisible(): boolean { return boxesVisible; }
+export function isDebugVisible(): boolean {
+  return boxesVisible;
+}
 
 export function toggleDebug(): boolean {
   boxesVisible = !boxesVisible;

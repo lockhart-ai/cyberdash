@@ -3,7 +3,7 @@
 // Cyberdark night tint — applied to all asset-pack sprites at render time.
 // Derived from postprocess.py "cyberdark" preset: brightness 0.45, blue_shift 0.08
 //   R × 0.414 → 106,  G × 0.432 → 110,  B × 0.468 → 119
-export const CYBERDARK_TINT = 0x6A6E77;
+export const CYBERDARK_TINT = 0x6a6e77;
 
 export interface TileColors {
   top: number;
@@ -12,18 +12,18 @@ export interface TileColors {
 }
 
 export interface Building {
-  seed: number;        // deterministic seed derived from coordinates
-  colStart: number;    // first col (absolute grid coords)
-  colEnd: number;      // last col (inclusive)
-  rowStart: number;    // first row
-  rowEnd: number;      // last row (inclusive)
+  seed: number; // deterministic seed derived from coordinates
+  colStart: number; // first col (absolute grid coords)
+  colEnd: number; // last col (inclusive)
+  rowStart: number; // first row
+  rowEnd: number; // last row (inclusive)
   stories: number;
   color: TileColors;
-  texture: number;     // 0-5, indexes into texture variants
-  inset: number;       // fractional tile inset from sidewalk (0.2-0.8)
+  texture: number; // 0-5, indexes into texture variants
+  inset: number; // fractional tile inset from sidewalk (0.2-0.8)
   heightOffset: number; // random pixel offset added to base story height
   doorSide: "left" | "right";
-  doorInset: number;   // pixels inset from wall edge
+  doorInset: number; // pixels inset from wall edge
   doorTexture: number; // 0-2, door image variant
   windowTexture: number; // 0-5, window style variant (for future textures)
 }

@@ -1,6 +1,12 @@
 # Claude Code
 .claude/
 
+# OS files
+.DS_Store
+
+# Asset packs (symlinked, not in repo)
+public/asset_packs
+
 # Logs
 logs
 *.log
