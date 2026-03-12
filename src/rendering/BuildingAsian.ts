@@ -1,5 +1,6 @@
 import Phaser from "phaser";
-import { addDebugGraphics } from "./debugOverlay";
+import { addDebugGraphics, addDebugText } from "./debugOverlay";
+import { CYBERDARK_TINT } from "./BuildingTypes";
 
 /**
  * Traditional Asian Heritage stackable buildings.
@@ -148,6 +149,8 @@ export interface AsianPlaced {
   se: { x: number; y: number };
   /** SW corner of the bottom layer's iso footprint (for chaining) */
   sw: { x: number; y: number };
+  /** Number of floor layers (excluding the roof) — eligible for signs */
+  numFloors: number;
 }
 
 /**
@@ -204,7 +207,7 @@ export function placeAsianBuilding(
       // Bottom layer: anchor at south point using per-module originX
       const ox = getOriginX(key);
       const img = scene.add.image(x, curY, trimKey);
-      img.setOrigin(ox, 1).setScale(scale).setDepth(depth);
+      img.setOrigin(ox, 1).setScale(scale).setDepth(depth).setTint(CYBERDARK_TINT);
       images.push(img);
 
       // Compute bbox and chain corners from bottom layer
@@ -220,7 +223,7 @@ export function placeAsianBuilding(
     } else {
       // Upper layers: center on the bottom layer's anchor x
       const img = scene.add.image(x, curY, trimKey);
-      img.setOrigin(0.5, 1).setScale(scale).setDepth(depth);
+      img.setOrigin(0.5, 1).setScale(scale).setDepth(depth).setTint(CYBERDARK_TINT);
       images.push(img);
 
       const layerLeft = x - w * 0.5;
@@ -246,5 +249,13 @@ export function placeAsianBuilding(
   gfx.fillCircle(sw.x, sw.y, 3);
   addDebugGraphics(gfx);
 
-  return { images, se, sw };
+  const layerLabel = layers.map(k => k.replace("tac-", "")).join(",");
+  const midY = (bboxTop + bboxBottom) / 2;
+  const label = scene.add.text(bboxRight + 4, midY, `TAC[${layerLabel}]`, {
+    fontSize: "10px", color: "#4af", backgroundColor: "#000c",
+    padding: { x: 3, y: 2 },
+  }).setOrigin(0, 0.5).setDepth(depth + 1);
+  addDebugText(label);
+
+  return { images, se, sw, numFloors: layers.length - 1 };
 }

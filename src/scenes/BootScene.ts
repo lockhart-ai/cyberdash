@@ -1,7 +1,7 @@
 import Phaser from "phaser";
-import { ASSET_CATALOG } from "../config/assetCatalog";
 import { trimCompositeBuildings, trimSkyscrapers } from "../rendering/CompositeBuilding";
 import { trimAsianModules } from "../rendering/BuildingAsian";
+import { trimBillboards } from "../rendering/BillboardTrim";
 
 export const DIRECTIONS = [
   "south",
@@ -21,12 +21,12 @@ export class BootScene extends Phaser.Scene {
 
   preload() {
     for (const dir of DIRECTIONS) {
-      this.load.image(`player-${dir}`, `assets/sprites/player/${dir}.png`);
-      this.load.spritesheet(`walk-${dir}`, `assets/sprites/player/walk-${dir}.png`, {
+      this.load.image(`player-${dir}`, `assets/player/${dir}.png`);
+      this.load.spritesheet(`walk-${dir}`, `assets/player/walk-${dir}.png`, {
         frameWidth: 64,
         frameHeight: 64,
       });
-      this.load.spritesheet(`run-${dir}`, `assets/sprites/player/run-${dir}.png`, {
+      this.load.spritesheet(`run-${dir}`, `assets/player/run-${dir}.png`, {
         frameWidth: 64,
         frameHeight: 64,
       });
@@ -40,101 +40,14 @@ export class BootScene extends Phaser.Scene {
 
     // Building wall textures
     for (let v = 0; v < 6; v++) {
-      this.load.image(`bldg-top-v${v}`, `assets/tilemaps/bldg_top_v${v}.png`);
       for (const s of [2, 3, 4]) {
         this.load.image(`wall-left-v${v}-${s}s`, `assets/tilemaps/wall_left_v${v}_${s}s.png`);
         this.load.image(`wall-right-v${v}-${s}s`, `assets/tilemaps/wall_right_v${v}_${s}s.png`);
       }
     }
 
-    // Asset pack catalog (for showroom)
-    for (const section of ASSET_CATALOG) {
-      for (const entry of section.entries) {
-        this.load.image(entry.key, entry.path);
-      }
-    }
-
-    // SciFi Buildings — all 3236px-wide strips (4 rotations, 809px per frame)
-    const CPB = "asset_packs/Isometric Cyberpunk Buildings/Isometric Cyberpunk Buildings/Building";
-    const cpbModules: { key: string; file: string; h: number }[] = [
-      // ── Bases (10) ──
-      { key: "cpb-base-10",  file: "SciFi_Buildings-10-Base_A.png",     h: 609 },
-      { key: "cpb-base-11",  file: "SciFi_Buildings-11-Base_A-2.png",   h: 609 },
-      { key: "cpb-base-12",  file: "SciFi_Buildings-12-Base_A-3.png",   h: 609 },
-      { key: "cpb-base-18",  file: "SciFi_Buildings-18-Base_B.png",     h: 609 },
-      { key: "cpb-base-19",  file: "SciFi_Buildings-19-Base_B-1.png",   h: 609 },
-      { key: "cpb-base-69",  file: "SciFi_Buildings-69-Base_Back.png",  h: 609 },
-      { key: "cpb-base-70",  file: "SciFi_Buildings-70-Base_Front.png", h: 609 },
-      { key: "cpb-base-73",  file: "SciFi_Buildings-73-Base_B.png",     h: 509 },
-      { key: "cpb-base-115", file: "SciFi_Buildings-115-Base_B.png",    h: 609 },
-      { key: "cpb-base-117", file: "SciFi_Buildings-117-Base_A.png",    h: 609 },
-      // ── Walls (43) ──
-      { key: "cpb-wall-5",   file: "SciFi_Buildings-5-Building_D.png",       h: 609 },
-      { key: "cpb-wall-6",   file: "SciFi_Buildings-6-Building_D-4.png",     h: 609 },
-      { key: "cpb-wall-7",   file: "SciFi_Buildings-7-Building_C.png",       h: 609 },
-      { key: "cpb-wall-8",   file: "SciFi_Buildings-8-Building_C-7.png",     h: 609 },
-      { key: "cpb-wall-9",   file: "SciFi_Buildings-9-Building_E.png",       h: 609 },
-      { key: "cpb-wall-15",  file: "SciFi_Buildings-15-Building_B.png",      h: 609 },
-      { key: "cpb-wall-16",  file: "SciFi_Buildings-16-Building_B-1.png",    h: 609 },
-      { key: "cpb-wall-17",  file: "SciFi_Buildings-17-Building_A.png",      h: 609 },
-      { key: "cpb-wall-29",  file: "SciFi_Buildings-29-Building_B_Panel.png", h: 609 },
-      { key: "cpb-wall-30",  file: "SciFi_Buildings-30-Building_A.png",      h: 489 },
-      { key: "cpb-wall-31",  file: "SciFi_Buildings-31-Building_C_Panel.png", h: 569 },
-      { key: "cpb-wall-35",  file: "SciFi_Buildings-35-Building_D.png",      h: 609 },
-      { key: "cpb-wall-36",  file: "SciFi_Buildings-36-Building_D_Panel.png", h: 609 },
-      { key: "cpb-wall-37",  file: "SciFi_Buildings-37-Building_B-1.png",    h: 609 },
-      { key: "cpb-wall-41",  file: "SciFi_Buildings-41-Building_C.png",      h: 609 },
-      { key: "cpb-wall-42",  file: "SciFi_Buildings-42-Building_B.png",      h: 609 },
-      { key: "cpb-wall-43",  file: "SciFi_Buildings-43-Building_A.png",      h: 489 },
-      { key: "cpb-wall-65",  file: "SciFi_Buildings-65-Building_G.png",      h: 609 },
-      { key: "cpb-wall-66",  file: "SciFi_Buildings-66-Building_F.png",      h: 609 },
-      { key: "cpb-wall-67",  file: "SciFi_Buildings-67-Building_F-1.png",    h: 609 },
-      { key: "cpb-wall-72",  file: "SciFi_Buildings-72-Building_E.png",      h: 609 },
-      { key: "cpb-wall-82",  file: "SciFi_Buildings-82-Building_D.png",      h: 609 },
-      { key: "cpb-wall-83",  file: "SciFi_Buildings-83-Building_E.png",      h: 609 },
-      { key: "cpb-wall-84",  file: "SciFi_Buildings-84-Building_E-3.png",    h: 609 },
-      { key: "cpb-wall-85",  file: "SciFi_Buildings-85-Building_A.png",      h: 609 },
-      { key: "cpb-wall-86",  file: "SciFi_Buildings-86-Building_C.png",      h: 609 },
-      { key: "cpb-wall-87",  file: "SciFi_Buildings-87-Building_B.png",      h: 609 },
-      { key: "cpb-wall-93",  file: "SciFi_Buildings-93-Building_C.png",      h: 609 },
-      { key: "cpb-wall-95",  file: "SciFi_Buildings-95-Building_B.png",      h: 609 },
-      { key: "cpb-wall-96",  file: "SciFi_Buildings-96-Building_A.png",      h: 609 },
-      { key: "cpb-wall-97",  file: "SciFi_Buildings-97-Building_A-1.png",    h: 609 },
-      { key: "cpb-wall-98",  file: "SciFi_Buildings-98-Building_A-2.png",    h: 609 },
-      { key: "cpb-wall-99",  file: "SciFi_Buildings-99-Building_D.png",      h: 609 },
-      { key: "cpb-wall-100", file: "SciFi_Buildings-100-Building_D-1.png",   h: 609 },
-      { key: "cpb-wall-105", file: "SciFi_Buildings-105-Building_D-1.png",   h: 609 },
-      { key: "cpb-wall-106", file: "SciFi_Buildings-106-Building_D-7.png",   h: 609 },
-      { key: "cpb-wall-107", file: "SciFi_Buildings-107-Building_F.png",     h: 609 },
-      { key: "cpb-wall-108", file: "SciFi_Buildings-108-Building_F-6.png",   h: 609 },
-      { key: "cpb-wall-109", file: "SciFi_Buildings-109-Building_E.png",     h: 609 },
-      { key: "cpb-wall-110", file: "SciFi_Buildings-110-Building_C.png",     h: 609 },
-      { key: "cpb-wall-111", file: "SciFi_Buildings-111-Building_C-1.png",   h: 609 },
-      { key: "cpb-wall-112", file: "SciFi_Buildings-112-Building_B.png",     h: 609 },
-      { key: "cpb-wall-113", file: "SciFi_Buildings-113-Building_B-2.png",   h: 609 },
-      { key: "cpb-wall-114", file: "SciFi_Buildings-114-Building_A.png",     h: 609 },
-      // ── Roofs (11) ──
-      { key: "cpb-roof-2",   file: "SciFi_Buildings-2-Rooftop_Short.png",  h: 521 },
-      { key: "cpb-roof-3",   file: "SciFi_Buildings-3-Rooftop_Tall.png",   h: 609 },
-      { key: "cpb-roof-26",  file: "SciFi_Buildings-26-Rooftop_B.png",     h: 465 },
-      { key: "cpb-roof-33",  file: "SciFi_Buildings-33-Rooftop_A.png",     h: 473 },
-      { key: "cpb-roof-34",  file: "SciFi_Buildings-34-Rooftop_A-1.png",   h: 473 },
-      { key: "cpb-roof-38",  file: "SciFi_Buildings-38-Rooftop.png",       h: 473 },
-      { key: "cpb-roof-39",  file: "SciFi_Buildings-39-Rooftop-1.png",     h: 473 },
-      { key: "cpb-roof-75",  file: "SciFi_Buildings-75-Rooftop.png",       h: 473 },
-      { key: "cpb-roof-77",  file: "SciFi_Buildings-77-Roof_Flat.png",     h: 609 },
-      { key: "cpb-roof-104", file: "SciFi_Buildings-104-Rooftop_B-1.png",  h: 609 },
-      { key: "cpb-roof-116", file: "SciFi_Buildings-116-Rooftop_A-1.png",  h: 609 },
-    ];
-    for (const m of cpbModules) {
-      this.load.spritesheet(m.key, `${CPB}/${m.file}`, {
-        frameWidth: 809,
-        frameHeight: m.h,
-      });
-    }
-
     // Traditional Asian City — stackable building modules (4 rotations per strip, SE=0)
-    const TAC = "asset_packs/Isometric Traditional Asian City/Isometric Traditional Asian City/Architecture";
+    const TAC = "assets/buildings/asian";
     const tacModules: { key: string; file: string; fw: number; h: number }[] = [
       // Floors
       { key: "tac-65", file: "Traditional Asian City-65-Building_A_Floor_A.png", fw: 873, h: 641 },
@@ -163,14 +76,15 @@ export class BootScene extends Phaser.Scene {
       { key: "tac-22", file: "Traditional Asian City-22-Building_P_roof_B.png",  fw: 1145, h: 673 },
     ];
     for (const m of tacModules) {
-      this.load.spritesheet(m.key, `${TAC}/${m.file}`, {
+      const sub = m.file.includes("_roof_") ? "roofs" : "floors";
+      this.load.spritesheet(m.key, `${TAC}/${sub}/${m.file}`, {
         frameWidth: m.fw,
         frameHeight: m.h,
       });
     }
 
     // Cyberpunk City Skyscrapers (BuildingModules) — 4 rotations per strip
-    const CPC_SKY = "asset_packs/Isometric Cyberpunk City/BuildingModules";
+    const CPC_SKY = "assets/buildings/city/skyscrapers";
     const skyBuildings = [
       { key: "sky-0", file: "Building.png" },
       { key: "sky-1", file: "Building1.png" },
@@ -184,7 +98,7 @@ export class BootScene extends Phaser.Scene {
     }
 
     // Cyberpunk City Composite Buildings — 4 rotations per strip (SE, NE, NW, SW)
-    const CPC = "asset_packs/Isometric Cyberpunk City/CompositeBuildings";
+    const CPC = "assets/buildings/city/composites";
     const cpcBuildings: { key: string; file: string; fw: number; h: number }[] = [
       { key: "cpc-comp-0",  file: "CompositeBuilding.png",   fw: 657, h: 705 },
       { key: "cpc-comp-1",  file: "CompositeBuilding1.png",  fw: 769, h: 797 },
@@ -205,6 +119,55 @@ export class BootScene extends Phaser.Scene {
     ];
     for (const b of cpcBuildings) {
       this.load.spritesheet(b.key, `${CPC}/${b.file}`, {
+        frameWidth: b.fw,
+        frameHeight: b.h,
+      });
+    }
+
+    // Billboard signs from Cyberpunk Streets — 4 rotations per strip (SE=0, NE=1, NW=2, SW=3)
+    const BB = "assets/sprites/billboards";
+    const billboards: { key: string; file: string; fw: number; h: number }[] = [
+      { key: "bb-0",  file: "Cyberpunk Streets-18-Billboard_TVCity-4.png",          fw: 253, h: 251 },
+      { key: "bb-1",  file: "Cyberpunk Streets-19-Billboard_TVCity-0.png",          fw: 61,  h: 71 },
+      { key: "bb-2",  file: "Cyberpunk Streets-20-Billboard_Smoke-0.png",           fw: 261, h: 295 },
+      { key: "bb-3",  file: "Cyberpunk Streets-21-Billboard_Sachio-3.png",          fw: 105, h: 217 },
+      { key: "bb-4",  file: "Cyberpunk Streets-22-Billboard_Sachio-1.png",          fw: 105, h: 217 },
+      { key: "bb-5",  file: "Cyberpunk Streets-23-Billboard_Ring-0.png",            fw: 149, h: 279 },
+      { key: "bb-6",  file: "Cyberpunk Streets-24-Billboard_RedCrime-0.png",        fw: 233, h: 681 },
+      { key: "bb-7",  file: "Cyberpunk Streets-240-Billboard_Sexy.png",             fw: 257, h: 361 },
+      { key: "bb-8",  file: "Cyberpunk Streets-241-Billboard_Sexy_frame.png",       fw: 289, h: 417 },
+      { key: "bb-9",  file: "Cyberpunk Streets-242-Billboard_Ramen_StoreFront.png", fw: 609, h: 421 },
+      { key: "bb-10", file: "Cyberpunk Streets-243-Billboard_Pharmacy_Large.png",   fw: 429, h: 371 },
+      { key: "bb-11", file: "Cyberpunk Streets-244-Billboard_GunStore-5.png",       fw: 193, h: 237 },
+      { key: "bb-12", file: "Cyberpunk Streets-245-Billboard_GunStore-4.png",       fw: 189, h: 143 },
+      { key: "bb-13", file: "Cyberpunk Streets-246-Billboard_GunStore-3.png",       fw: 169, h: 201 },
+      { key: "bb-14", file: "Cyberpunk Streets-247-Billboard_Drugs_Framed.png",     fw: 385, h: 397 },
+      { key: "bb-15", file: "Cyberpunk Streets-248-Billboard_DVD.png",              fw: 173, h: 143 },
+      { key: "bb-16", file: "Cyberpunk Streets-249-Billboard_Chinese_Large.png",    fw: 269, h: 307 },
+      { key: "bb-17", file: "Cyberpunk Streets-25-Billboard_Ramen-0.png",           fw: 201, h: 177 },
+      { key: "bb-18", file: "Cyberpunk Streets-250-BIllboard_Rooftop-1.png",       fw: 469, h: 383 },
+      { key: "bb-19", file: "Cyberpunk Streets-251-BIllboard_Rooftop-0.png",       fw: 469, h: 371 },
+      { key: "bb-20", file: "Cyberpunk Streets-26-Billboard_Pill.png",              fw: 69,  h: 191 },
+      { key: "bb-21", file: "Cyberpunk Streets-27-Billboard_Pharmacy.png",          fw: 169, h: 241 },
+      { key: "bb-22", file: "Cyberpunk Streets-28-Billboard_Open-3.png",            fw: 189, h: 151 },
+      { key: "bb-23", file: "Cyberpunk Streets-29-Billboard_News-3.png",            fw: 257, h: 253 },
+      { key: "bb-24", file: "Cyberpunk Streets-30-Billboard_LifeBar.png",           fw: 69,  h: 191 },
+      { key: "bb-25", file: "Cyberpunk Streets-31-Billboard_KoreanOK-2.png",       fw: 257, h: 253 },
+      { key: "bb-26", file: "Cyberpunk Streets-32-Billboard_JapaneseGun-2.png",    fw: 257, h: 253 },
+      { key: "bb-27", file: "Cyberpunk Streets-33-Billboard_Herb-3.png",            fw: 149, h: 279 },
+      { key: "bb-28", file: "Cyberpunk Streets-34-Billboard_Girl2-0.png",           fw: 257, h: 361 },
+      { key: "bb-29", file: "Cyberpunk Streets-35-Billboard_Girl1-0.png",           fw: 257, h: 361 },
+      { key: "bb-30", file: "Cyberpunk Streets-36-Billboard_Game-3.png",            fw: 177, h: 233 },
+      { key: "bb-31", file: "Cyberpunk Streets-37-Billboard_Drugs-0.png",           fw: 101, h: 451 },
+      { key: "bb-32", file: "Cyberpunk Streets-38-Billboard_DVD-0.png",             fw: 161, h: 241 },
+      { key: "bb-33", file: "Cyberpunk Streets-39-Billboard_Crab-2.png",            fw: 177, h: 249 },
+      { key: "bb-34", file: "Cyberpunk Streets-40-Billboard_Chinese3-1.png",        fw: 161, h: 181 },
+      { key: "bb-35", file: "Cyberpunk Streets-41-Billboard_Chinese2-0.png",        fw: 69,  h: 195 },
+      { key: "bb-36", file: "Cyberpunk Streets-42-Billboard_Chinese1-0.png",        fw: 257, h: 253 },
+      { key: "bb-37", file: "Cyberpunk Streets-43-Billboard_CatchADoll-0.png",      fw: 985, h: 657 },
+    ];
+    for (const b of billboards) {
+      this.load.spritesheet(b.key, `${BB}/${b.file}`, {
         frameWidth: b.fw,
         frameHeight: b.h,
       });
@@ -231,6 +194,7 @@ export class BootScene extends Phaser.Scene {
     trimCompositeBuildings(this);
     trimSkyscrapers(this);
     trimAsianModules(this);
+    trimBillboards(this);
     this.generatePlaceholders();
     this.scene.start("GameScene");
   }

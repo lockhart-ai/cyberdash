@@ -1,5 +1,6 @@
 import Phaser from "phaser";
-import { addDebugGraphics } from "./debugOverlay";
+import { addDebugGraphics, addDebugText } from "./debugOverlay";
+import { CYBERDARK_TINT } from "./BuildingTypes";
 
 /** Seeded PRNG (mulberry32) */
 function mulberry32(seed: number): () => number {
@@ -283,7 +284,7 @@ export function placeCompositeBuilding(
   const h = frame.height * scale;
 
   const img = scene.add.image(x, y, key);
-  img.setOrigin(originX, 1).setScale(scale).setDepth(depth);
+  img.setOrigin(originX, 1).setScale(scale).setDepth(depth).setTint(CYBERDARK_TINT);
 
   // Bbox from origin: south point is at (x, y),
   // which is originX fraction from the left and at the bottom.
@@ -315,6 +316,13 @@ export function placeCompositeBuilding(
   gfx.fillStyle(0x0088ff, 1);
   gfx.fillCircle(swX, swY, 4);
   addDebugGraphics(gfx);
+
+  const midY = (bbox.top + bbox.bottom) / 2;
+  const label = scene.add.text(bbox.right + 4, midY, `CPC-${buildingIdx}`, {
+    fontSize: "12px", color: "#4af", backgroundColor: "#000c",
+    padding: { x: 3, y: 2 },
+  }).setOrigin(0, 0.5).setDepth(depth + 1);
+  addDebugText(label);
 
   return { img, bbox, se: { x: seX, y: seY }, sw: { x: swX, y: swY }, buildingIdx };
 }
@@ -438,7 +446,7 @@ export function placeSkyscraper(
   const h = frame.height * scale;
 
   const img = scene.add.image(x, y, key);
-  img.setOrigin(originX, 1).setScale(scale).setDepth(depth);
+  img.setOrigin(originX, 1).setScale(scale).setDepth(depth).setTint(CYBERDARK_TINT);
 
   const bbox = {
     left: Math.round(x - w * originX),

@@ -1,5 +1,10 @@
 // Building data types and color palette
 
+// Cyberdark night tint — applied to all asset-pack sprites at render time.
+// Derived from postprocess.py "cyberdark" preset: brightness 0.45, blue_shift 0.08
+//   R × 0.414 → 106,  G × 0.432 → 110,  B × 0.468 → 119
+export const CYBERDARK_TINT = 0x6A6E77;
+
 export interface TileColors {
   top: number;
   left: number;

@@ -14,6 +14,7 @@ const DEPTH_WALL_TEX = 0;         // wall texture images (base)
 const DEPTH_FEATURE = 0.3;        // doors, windows (on wall surface)
 const DEPTH_STREET_OBJ = 0.6;     // vending machines, garbage bins (in front of wall)
 import { buildingCorners, tileInsetPosition, computeBuildingMetrics, SLOT_WIDTH, SLOT_GAP, WALL_MARGIN, WIN_TARGET_H, WIN_BOTTOM } from "./BuildingMetrics";
+import { placeNeonSigns } from "./NeonSigns";
 export type { BuildingMetrics } from "./BuildingMetrics";
 export { computeBuildingMetrics } from "./BuildingMetrics";
 
@@ -211,10 +212,6 @@ export function renderBuilding(
   // Shared Graphics for all balconies and signs (one each, not per-floor)
   const balcGfx = scene.add.graphics();
   balcGfx.setDepth(depth + DEPTH_FEATURE + 0.1);
-  const signGfxFlat = scene.add.graphics();
-  signGfxFlat.setDepth(depth + DEPTH_FEATURE + 0.12);
-  const signGfxProtrude = scene.add.graphics();
-  signGfxProtrude.setDepth(depth + DEPTH_FEATURE + 0.18);
 
   for (let floor = 1; floor < building.stories; floor++) {
     const floorY = floor * STORY_HEIGHT;
@@ -297,169 +294,22 @@ export function renderBuilding(
     for (let h = SLAT_SPACING; h < RAIL_H; h += SLAT_SPACING) {
       balcGfx.lineBetween(eFloor.x, eFloor.y - h, eOut.x, eOut.y - h);
     }
-
-    // --- Protruding neon signs mounted on balcony ---
-    // Signs are perpendicular to SE wall (face the +row direction, like S-side railing)
-    // Positioned partway along the balcony outer edge
-
-    // Sign dimensions (randomized per floor)
-    const sizeR = buildingHash(building.seed, 90 + floor);
-    const H_SIGN_W = 72 + Math.floor(sizeR * 48);       // 72-120
-    const H_SIGN_H = 36 + Math.floor(sizeR * 24);       // 36-60
-    const SIGN_THICK = 3;
-
-    // Signs hang from the front railing, protruding outward (perpendicular to SE wall).
-    // The front railing runs sOut→eOut. Signs extend in +row dir from that edge.
-    // +row screen dir = (TILE_W/2, TILE_H/2) per tile (unnormalized).
-    // Use unnormalized for cleaner pixel math:
-    const outX = TILE_W / 2;  // 32
-    const outY = TILE_H / 2;  // 16
-
-    // 3 signs per balcony in one of two arrangements:
-    // (flush, flush, protruding) or (flush, protruding, flush)
-    const sizeR3 = buildingHash(building.seed, 100 + floor);
-    const F_SIGN_W = 60 + Math.floor(sizeR3 * 40);      // 60-100
-    const F_SIGN_H = 36 + Math.floor(sizeR3 * 24);      // 36-60
-    const arrangement = buildingHash(building.seed, 60 + floor) < 0.5
-      ? [2, 2, 0] : [2, 0, 2];  // 2=flat, 0=protruding (horiz)
-    // One random flush slot gets an image instead of katakana
-    const flatSlots = arrangement.map((t, i) => t === 2 ? i : -1).filter(i => i >= 0);
-    const imageSlot = flatSlots[Math.floor(buildingHash(building.seed, 61 + floor) * flatSlots.length)];
-
-    // Neon border colors
-    const NEON_COLORS = [0xff0066, 0x00ffcc, 0xff6600, 0x00ccff, 0xcc00ff, 0xffcc00, 0x00ff66, 0xff3399];
-
-    // Three thirds of the balcony
-    for (let slot = 0; slot < 3; slot++) {
-      const thirdStart = slot / 3;
-      const thirdEnd = (slot + 1) / 3;
-      const type = arrangement[slot];
-      const neonIdx = Math.floor(buildingHash(building.seed, 110 + floor * 3 + slot) * NEON_COLORS.length);
-      const neon = NEON_COLORS[neonIdx];
-      const contentIdx = (neonIdx + 1 + Math.floor(buildingHash(building.seed, 115 + floor * 3 + slot) * (NEON_COLORS.length - 1))) % NEON_COLORS.length;
-      const contentNeon = NEON_COLORS[contentIdx];
-      let pts: Phaser.Geom.Point[];
-
-      if (type === 2) {
-        // Flat: fill the third, centered
-        const midT = (thirdStart + thirdEnd) / 2;
-        const thirdW = (eOut.x - sOut.x) / 3;
-        const fw = Math.min(F_SIGN_W, thirdW - 8);
-        const fx = sOut.x + midT * (eOut.x - sOut.x) - fw / 2;
-        const fy = sOut.y + midT * (eOut.y - sOut.y) + fw / 2 * 0.5;
-        pts = [
-          new Phaser.Geom.Point(fx, fy),
-          new Phaser.Geom.Point(fx + fw, fy - fw * 0.5),
-          new Phaser.Geom.Point(fx + fw, fy - fw * 0.5 - F_SIGN_H),
-          new Phaser.Geom.Point(fx, fy - F_SIGN_H),
-        ];
-      } else {
-        // Protruding: random position within the third
-        const rand = buildingHash(building.seed, 70 + floor * 3 + slot);
-        const t = thirdStart + 0.05 + rand * (1 / 3 - 0.1);
-        const sx = sOut.x + t * (eOut.x - sOut.x);
-        const sy = sOut.y + t * (eOut.y - sOut.y);
-        const w = H_SIGN_W;
-        const h = H_SIGN_H;
-        pts = [
-          new Phaser.Geom.Point(sx, sy),
-          new Phaser.Geom.Point(sx + w, sy + w * 0.5),
-          new Phaser.Geom.Point(sx + w, sy + w * 0.5 - h),
-          new Phaser.Geom.Point(sx, sy - h),
-        ];
-      }
-
-      // Dark fill + neon border
-      const gfx = type === 2 ? signGfxFlat : signGfxProtrude;
-      const contentDepth = type === 2 ? 0.13 : 0.19;
-      gfx.fillStyle(0x1a1a2e, 1);
-      gfx.fillPoints(pts, true);
-      gfx.lineStyle(2, neon, 1);
-      gfx.strokePoints(pts, true);
-
-      // Sign content: center of the parallelogram
-      const cx = (pts[0].x + pts[1].x + pts[2].x + pts[3].x) / 4;
-      const cy = (pts[0].y + pts[1].y + pts[2].y + pts[3].y) / 4;
-      const signW = Math.abs(pts[1].x - pts[0].x) || Math.abs(pts[2].x - pts[3].x);
-      const signH = Math.abs(pts[0].y - pts[3].y) || Math.abs(pts[1].y - pts[2].y);
-      const neonHex = "#" + contentNeon.toString(16).padStart(6, "0");
-      // Skew: protruding signs follow +col axis (skewY +0.5), flat signs follow SE wall (skewY -0.5)
-      const skewY = type === 2 ? -0.5 : 0.5;
-
-      if (slot === imageSlot) {
-        // This slot gets a noodle bowl or dragon image
-        const isNoodle = buildingHash(building.seed, 130 + floor * 3 + slot) < 0.5;
-        const prefix = isNoodle ? "neon-noodle-sign" : "neon-dragon-sign";
-        const variant = Math.floor(buildingHash(building.seed, 140 + floor * 3 + slot) * 10);
-        const symTexKey = `${prefix}-${variant}`;
-        const frame = scene.textures.getFrame(symTexKey);
-        if (frame) {
-          const imgScale = Math.min((signW * 0.8) / frame.width, (signH * 0.8) / frame.height);
-          const symImg = scene.add.image(cx, cy, symTexKey);
-          symImg.setOrigin(0.5, 0.5).setScale(imgScale).setDepth(depth + DEPTH_FEATURE + contentDepth);
-          (symImg as any).isNeonText = true;
-          objects.push(symImg);
-        }
-      } else {
-        // Katakana characters
-        const KATAKANA = "アイウエオカキクケコサシスセソタチツテトナニヌネノハヒフヘホマミムメモヤユヨラリルレロワヲン";
-        const makeSkewedChar = (char: string, fs: number, color: string, skew: number, tag: string) => {
-          const cw = Math.ceil(fs * 1.2);
-          const skewExtra = Math.ceil(cw * Math.abs(skew));
-          const ch = fs + skewExtra + 4;
-          const canvas = document.createElement("canvas");
-          canvas.width = cw;
-          canvas.height = ch;
-          const ctx = canvas.getContext("2d")!;
-          ctx.setTransform(1, skew, 0, 1, 0, skew > 0 ? 0 : skewExtra);
-          ctx.font = `bold ${fs}px sans-serif`;
-          ctx.fillStyle = color;
-          ctx.textAlign = "center";
-          ctx.textBaseline = "middle";
-          ctx.fillText(char, cw / 2, fs / 2 + 2);
-          const texKey = `sign-${building.colStart}-${building.rowStart}-${floor}-${slot}-${tag}`;
-          if (scene.textures.exists(texKey)) scene.textures.remove(texKey);
-          scene.textures.addCanvas(texKey, canvas);
-          return { texKey, cw, ch };
-        };
-
-        const numChars = 3 + Math.floor(buildingHash(building.seed, 135 + floor * 3 + slot) * 3);
-        const isHoriz = type !== 1;
-        const fontSize = isHoriz
-          ? Math.max(10, Math.floor(Math.min(signW / (numChars + 0.5), signH * 0.7)))
-          : Math.max(10, Math.floor(Math.min(signW * 0.5, signH / (numChars + 0.5))));
-
-        if (isHoriz) {
-          const stepSlope = type === 2 ? -0.5 : 0.5;
-          const half = (numChars - 1) / 2;
-          for (let c = 0; c < numChars; c++) {
-            const ki = Math.floor(buildingHash(building.seed, 160 + floor * 10 + slot * 3 + c) * KATAKANA.length);
-            const { texKey } = makeSkewedChar(KATAKANA[ki], fontSize, neonHex, skewY, `c${c}`);
-            const offset = (c - half) * fontSize;
-            const charImg = scene.add.image(cx + offset, cy + offset * stepSlope, texKey);
-            charImg.setOrigin(0.5, 0.5).setDepth(depth + DEPTH_FEATURE + contentDepth);
-            (charImg as any).isNeonText = true;
-            objects.push(charImg);
-          }
-        } else {
-          const totalH = numChars * fontSize;
-          const startY = cy - totalH / 2 + fontSize / 2;
-          for (let c = 0; c < numChars; c++) {
-            const ki = Math.floor(buildingHash(building.seed, 160 + floor * 10 + slot * 3 + c) * KATAKANA.length);
-            const { texKey } = makeSkewedChar(KATAKANA[ki], fontSize, neonHex, skewY, `c${c}`);
-            const charImg = scene.add.image(cx, startY + c * fontSize, texKey);
-            charImg.setOrigin(0.5, 0.5).setDepth(depth + DEPTH_FEATURE + contentDepth);
-            (charImg as any).isNeonText = true;
-            objects.push(charImg);
-          }
-        }
-      }
-    }
-
   }
   objects.push(balcGfx);
-  objects.push(signGfxFlat);
-  objects.push(signGfxProtrude);
+
+  // Neon signs on balcony outer edge
+  const signEdgeStart = { x: S.x + rowDirX * BALCONY_OUT, y: S.y + rowDirY * BALCONY_OUT };
+  const signEdgeEnd = { x: E.x + rowDirX * BALCONY_OUT, y: E.y + rowDirY * BALCONY_OUT };
+  const signObjs = placeNeonSigns(scene, {
+    seed: building.seed,
+    id: `bldg-${building.colStart}-${building.rowStart}`,
+    edgeStart: signEdgeStart,
+    edgeEnd: signEdgeEnd,
+    numFloors: building.stories - 1,
+    floorHeight: STORY_HEIGHT,
+    depth: depth + DEPTH_FEATURE,
+  });
+  objects.push(...signObjs);
 
   // --- Slot grid for SE wall features (doors & windows) ---
   const seWallLen = E.x - S.x;

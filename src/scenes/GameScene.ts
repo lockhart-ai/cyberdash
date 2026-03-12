@@ -1,14 +1,14 @@
 import Phaser from "phaser";
 import { TILE_W, TILE_H, isoToScreen, screenToIso } from "../iso/IsoGeometry";
-import { COL_PERIOD, ROW_PERIOD, STREET_WIDTH, SIDEWALK_WIDTH, BLOCK_INTERIOR, TileType, CURB_HEIGHT } from "../iso/CityLayout";
+import { COL_PERIOD, ROW_PERIOD, STREET_WIDTH, SIDEWALK_WIDTH, BLOCK_INTERIOR, TileType, CURB_HEIGHT, STORY_HEIGHT } from "../iso/CityLayout";
 import { Building, BUILDING_PALETTE } from "../rendering/BuildingTypes";
 import { ASSET_CATALOG } from "../config/assetCatalog";
 import { renderBuilding, renderBuildingFootprint, dumpBuildingMetrics } from "../rendering/BuildingRenderer";
 import { renderStreetTile, renderSidewalkTile } from "../rendering/StreetRenderer";
-import { placeBuildingA, LAYER_OVERLAP } from "../rendering/BuildingTypeA";
 import { placeCompositeBuilding, pickComposite, pickCompositeFitting, getCompositeAdvance, CompositeDir, placeSkyscraper } from "../rendering/CompositeBuilding";
 import { placeAsianBuilding } from "../rendering/BuildingAsian";
-import { toggleDebug } from "../rendering/debugOverlay";
+import { placeNeonSigns } from "../rendering/NeonSigns";
+import { toggleDebug, toggleLabels } from "../rendering/debugOverlay";
 
 type Direction =
   | "south"
@@ -106,10 +106,16 @@ export class GameScene extends Phaser.Scene {
     this.cursors = this.input.keyboard!.createCursorKeys();
     this.shiftKey = this.input.keyboard!.addKey(Phaser.Input.Keyboard.KeyCodes.SHIFT);
 
-    // F9 toggles debug overlay (bounding boxes + chain dots)
-    this.input.keyboard!.on("keydown-F9", () => {
+    // 9 toggles debug overlay (bounding boxes + chain dots)
+    this.input.keyboard!.on("keydown-NINE", () => {
       const on = toggleDebug();
-      console.log(`[debug] overlay ${on ? "ON" : "OFF"}`);
+      console.log(`[debug] boxes ${on ? "ON" : "OFF"}`);
+    });
+
+    // 0 toggles asset labels
+    this.input.keyboard!.on("keydown-ZERO", () => {
+      const on = toggleLabels();
+      console.log(`[debug] labels ${on ? "ON" : "OFF"}`);
     });
 
     // Performance diagnostics
@@ -176,9 +182,6 @@ export class GameScene extends Phaser.Scene {
     const playerDepth = feetY / (TILE_H / 2);
     this.player.setDepth(playerDepth);
 
-    // Building occlusion — disabled while composing new buildings
-    // const { col: pCol, row: pRow } = screenToIso(this.player.x, feetY);
-    // ...occlusion logic...
   }
 
   private getDirection(dx: number, dy: number): Direction {
@@ -644,11 +647,30 @@ export class GameScene extends Phaser.Scene {
       targetH: TARGET_H,
       x: startPos.x,
       y: startPos.y,
-      depth: blockColEnd + blockRowEnd + 10,
+      depth: startPos.y / (TILE_H / 2),
       seed: anchorSeed,
       direction: CompositeDir.SE,
       buildingIdx: anchorIdx,
     });
+    // Depth at NE-most ground point so player on sidewalk sorts in front
+    anchor.img.setDepth(Math.min(anchor.se.y, anchor.sw.y) / (TILE_H / 2));
+
+    // Neon signs on anchor's SE wall
+    const anchorH = anchor.bbox.bottom - anchor.bbox.top;
+    const anchorSignFloors = Math.floor(anchorH * 0.65 / STORY_HEIGHT);
+    if (anchorSignFloors >= 2) {
+      placeNeonSigns(this, {
+        seed: anchorSeed,
+        id: `comp-anchor-${bCol}-${bRow}`,
+        edgeStart: { x: startPos.x, y: startPos.y },
+        edgeEnd: anchor.se,
+        numFloors: anchorSignFloors,
+        floorHeight: STORY_HEIGHT,
+        depth: anchor.img.depth,
+        buildingIdx: anchor.buildingIdx,
+        buildingImages: [anchor.img],
+      });
+    }
 
     // --- Chain SW facades NW (screen-left) from anchor's SW corner ---
     const nwLimitX = isoToScreen(blockColStart, blockRowEnd).x;
@@ -671,15 +693,35 @@ export class GameScene extends Phaser.Scene {
         chosenIdx = fitting;
       }
 
+      const swPlacedX = southX;
+      const swPlacedY = southY;
       const placed = placeCompositeBuilding(this, {
         targetH: TARGET_H,
         x: southX,
         y: southY,
-        depth: blockColEnd + blockRowEnd + 10 - i,
+        depth: southY / (TILE_H / 2),
         seed,
         direction: CompositeDir.SW,
         buildingIdx: chosenIdx,
       });
+      placed.img.setDepth(placed.sw.y / (TILE_H / 2));
+
+      // Neon signs on SW facade's SE wall
+      const swH = placed.bbox.bottom - placed.bbox.top;
+      const swSignFloors = Math.floor(swH * 0.65 / STORY_HEIGHT);
+      if (swSignFloors >= 2) {
+        placeNeonSigns(this, {
+          seed,
+          id: `comp-sw-${bCol}-${bRow}-${i}`,
+          edgeStart: { x: swPlacedX, y: swPlacedY },
+          edgeEnd: placed.se,
+          numFloors: swSignFloors,
+          floorHeight: STORY_HEIGHT,
+          depth: placed.img.depth,
+          buildingIdx: placed.buildingIdx,
+          buildingImages: [placed.img],
+        });
+      }
 
       southX = placed.sw.x;
       southY = placed.sw.y;
@@ -707,13 +749,33 @@ export class GameScene extends Phaser.Scene {
       // ~30% chance of an Asian heritage building
       if (rng < 0.3 && remaining > 450) {
         const asianW = 450;
+        const asianAnchorX = southX;
+        const asianAnchorY = southY;
         const asianPlaced = placeAsianBuilding(this, {
           targetW: asianW,
           x: southX,
           y: southY,
-          depth: blockColEnd + blockRowEnd - i,
+          depth: southY / (TILE_H / 2),
           seed,
         });
+        const asianDepth = asianPlaced.se.y / (TILE_H / 2);
+        for (const img of asianPlaced.images) img.setDepth(asianDepth);
+
+        // Neon signs on asian building's SE wall (floors only, not roof, not ground)
+        const asianSignFloors = asianPlaced.numFloors - 1;
+        if (asianSignFloors >= 2) {
+          placeNeonSigns(this, {
+            seed,
+            id: `asian-${bCol}-${bRow}-${i}`,
+            edgeStart: { x: asianAnchorX, y: asianAnchorY },
+            edgeEnd: asianPlaced.se,
+            numFloors: asianSignFloors,
+            floorHeight: STORY_HEIGHT,
+            depth: asianDepth,
+            buildingImages: asianPlaced.images,
+          });
+        }
+
         // Chain from the SE corner of the placed Asian building
         southX = asianPlaced.se.x;
         southY = asianPlaced.se.y;
@@ -729,15 +791,35 @@ export class GameScene extends Phaser.Scene {
         chosenIdx = fitting;
       }
 
+      const sePlacedX = southX;
+      const sePlacedY = southY;
       const placed = placeCompositeBuilding(this, {
         targetH: TARGET_H,
         x: southX,
         y: southY,
-        depth: blockColEnd + blockRowEnd - i,
+        depth: southY / (TILE_H / 2),
         seed,
         exclude: prevIdx,
         buildingIdx: chosenIdx,
       });
+      placed.img.setDepth(placed.se.y / (TILE_H / 2));
+
+      // Neon signs on SE chain building's SE wall
+      const seH = placed.bbox.bottom - placed.bbox.top;
+      const seSignFloors = Math.floor(seH * 0.65 / STORY_HEIGHT);
+      if (seSignFloors >= 2) {
+        placeNeonSigns(this, {
+          seed,
+          id: `comp-se-${bCol}-${bRow}-${i}`,
+          edgeStart: { x: sePlacedX, y: sePlacedY },
+          edgeEnd: placed.se,
+          numFloors: seSignFloors,
+          floorHeight: STORY_HEIGHT,
+          depth: placed.img.depth,
+          buildingIdx: placed.buildingIdx,
+          buildingImages: [placed.img],
+        });
+      }
 
       southX = placed.se.x;
       southY = placed.se.y;
@@ -758,7 +840,7 @@ export class GameScene extends Phaser.Scene {
         targetH: TARGET_H,
         x: skyPos.x,
         y: skyPos.y,
-        depth: skyCol + row - 5,
+        depth: skyPos.y / (TILE_H / 2) - BLOCK_INTERIOR.cols,
         buildingIdx: skySeed % 3,
         direction: CompositeDir.SE,
       });
@@ -776,7 +858,7 @@ export class GameScene extends Phaser.Scene {
       targetW: 400,
       x: pos.x,
       y: pos.y,
-      depth: centerCol + centerRow + 10,
+      depth: pos.y / (TILE_H / 2),
       seed: 42,
     });
   }
