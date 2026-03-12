@@ -60,8 +60,8 @@ export class GameScene extends Phaser.Scene {
   private runDrag = 2000;
 
   // Map settings
-  private readonly mapCols = 108;
-  private readonly mapRows = 168;
+  private readonly mapCols = 3 * COL_PERIOD;
+  private readonly mapRows = 3 * ROW_PERIOD;
 
   constructor() {
     super({ key: "GameScene" });
@@ -91,7 +91,7 @@ export class GameScene extends Phaser.Scene {
     // }
 
     // Spawn player on a street tile
-    const spawnCol = 4 + 36;
+    const spawnCol = 4 + COL_PERIOD;
     const spawnRow = 4;
     const { x: spawnX, y: spawnY } = isoToScreen(spawnCol, spawnRow);
 
@@ -666,7 +666,7 @@ export class GameScene extends Phaser.Scene {
     }
 
     // --- Skyscrapers filling behind the facade rows toward the NE street ---
-    const nwOffset = 4; // tiles NW (decreasing col) from SE edge
+    const nwOffset = SIDEWALK_WIDTH; // tiles NW (decreasing col) from SE edge
     const skyCol = blockColEnd - nwOffset;
     const skyRowStart = blockRowStart + 10; // first skyscraper position (SW of NE street)
     const skyRowEnd = blockRowEnd; // behind the SW anchor
