@@ -11,7 +11,7 @@
     "lint:fix": "biome check --write src/"
   },
   "dependencies": {
-    "phaser": "^3.90.0"
+    "phaser": "^4.0.0-rc.6"
   },
   "devDependencies": {
     "@biomejs/biome": "^2.4.6",

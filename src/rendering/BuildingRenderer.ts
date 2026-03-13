@@ -98,10 +98,10 @@ export function renderBuilding(
   roofGfx.fillStyle(building.color.top, 1);
   roofGfx.fillPoints(
     [
-      new Phaser.Geom.Point(Nr.x, Nr.y),
-      new Phaser.Geom.Point(Er.x, Er.y),
-      new Phaser.Geom.Point(Sr.x, Sr.y),
-      new Phaser.Geom.Point(Wr.x, Wr.y),
+      new Phaser.Math.Vector2(Nr.x, Nr.y),
+      new Phaser.Math.Vector2(Er.x, Er.y),
+      new Phaser.Math.Vector2(Sr.x, Sr.y),
+      new Phaser.Math.Vector2(Wr.x, Wr.y),
     ],
     true,
   );
@@ -113,10 +113,10 @@ export function renderBuilding(
   seGfx.fillStyle(building.color.right, 1);
   seGfx.fillPoints(
     [
-      new Phaser.Geom.Point(E.x, E.y),
-      new Phaser.Geom.Point(S.x, S.y),
-      new Phaser.Geom.Point(Sr.x, Sr.y),
-      new Phaser.Geom.Point(Er.x, Er.y),
+      new Phaser.Math.Vector2(E.x, E.y),
+      new Phaser.Math.Vector2(S.x, S.y),
+      new Phaser.Math.Vector2(Sr.x, Sr.y),
+      new Phaser.Math.Vector2(Er.x, Er.y),
     ],
     true,
   );
@@ -127,10 +127,10 @@ export function renderBuilding(
   swGfx.fillStyle(building.color.left, 1);
   swGfx.fillPoints(
     [
-      new Phaser.Geom.Point(S.x, S.y),
-      new Phaser.Geom.Point(W.x, W.y),
-      new Phaser.Geom.Point(Wr.x, Wr.y),
-      new Phaser.Geom.Point(Sr.x, Sr.y),
+      new Phaser.Math.Vector2(S.x, S.y),
+      new Phaser.Math.Vector2(W.x, W.y),
+      new Phaser.Math.Vector2(Wr.x, Wr.y),
+      new Phaser.Math.Vector2(Sr.x, Sr.y),
     ],
     true,
   );
@@ -283,10 +283,10 @@ export function renderBuilding(
     balcGfx.fillStyle(building.color.top, 1);
     balcGfx.fillPoints(
       [
-        new Phaser.Geom.Point(sFloor.x, sFloor.y),
-        new Phaser.Geom.Point(eFloor.x, eFloor.y),
-        new Phaser.Geom.Point(eOut.x, eOut.y),
-        new Phaser.Geom.Point(sOut.x, sOut.y),
+        new Phaser.Math.Vector2(sFloor.x, sFloor.y),
+        new Phaser.Math.Vector2(eFloor.x, eFloor.y),
+        new Phaser.Math.Vector2(eOut.x, eOut.y),
+        new Phaser.Math.Vector2(sOut.x, sOut.y),
       ],
       true,
     );
@@ -295,10 +295,10 @@ export function renderBuilding(
     balcGfx.fillStyle(building.color.right, 1);
     balcGfx.fillPoints(
       [
-        new Phaser.Geom.Point(sOut.x, sOut.y),
-        new Phaser.Geom.Point(eOut.x, eOut.y),
-        new Phaser.Geom.Point(eOut.x, eOut.y + BALCONY_THICK),
-        new Phaser.Geom.Point(sOut.x, sOut.y + BALCONY_THICK),
+        new Phaser.Math.Vector2(sOut.x, sOut.y),
+        new Phaser.Math.Vector2(eOut.x, eOut.y),
+        new Phaser.Math.Vector2(eOut.x, eOut.y + BALCONY_THICK),
+        new Phaser.Math.Vector2(sOut.x, sOut.y + BALCONY_THICK),
       ],
       true,
     );
@@ -307,10 +307,10 @@ export function renderBuilding(
     balcGfx.fillStyle(building.color.left, 1);
     balcGfx.fillPoints(
       [
-        new Phaser.Geom.Point(sFloor.x, sFloor.y),
-        new Phaser.Geom.Point(sOut.x, sOut.y),
-        new Phaser.Geom.Point(sOut.x, sOut.y + BALCONY_THICK),
-        new Phaser.Geom.Point(sFloor.x, sFloor.y + BALCONY_THICK),
+        new Phaser.Math.Vector2(sFloor.x, sFloor.y),
+        new Phaser.Math.Vector2(sOut.x, sOut.y),
+        new Phaser.Math.Vector2(sOut.x, sOut.y + BALCONY_THICK),
+        new Phaser.Math.Vector2(sFloor.x, sFloor.y + BALCONY_THICK),
       ],
       true,
     );
@@ -320,10 +320,10 @@ export function renderBuilding(
     balcGfx.fillStyle(building.color.right, 1);
     balcGfx.fillPoints(
       [
-        new Phaser.Geom.Point(sOut.x, sOut.y),
-        new Phaser.Geom.Point(eOut.x, eOut.y),
-        new Phaser.Geom.Point(eOut.x, eOut.y - RAIL_H),
-        new Phaser.Geom.Point(sOut.x, sOut.y - RAIL_H),
+        new Phaser.Math.Vector2(sOut.x, sOut.y),
+        new Phaser.Math.Vector2(eOut.x, eOut.y),
+        new Phaser.Math.Vector2(eOut.x, eOut.y - RAIL_H),
+        new Phaser.Math.Vector2(sOut.x, sOut.y - RAIL_H),
       ],
       true,
     );
@@ -332,10 +332,10 @@ export function renderBuilding(
     balcGfx.fillStyle(building.color.left, 1);
     balcGfx.fillPoints(
       [
-        new Phaser.Geom.Point(sFloor.x, sFloor.y),
-        new Phaser.Geom.Point(sOut.x, sOut.y),
-        new Phaser.Geom.Point(sOut.x, sOut.y - RAIL_H),
-        new Phaser.Geom.Point(sFloor.x, sFloor.y - RAIL_H),
+        new Phaser.Math.Vector2(sFloor.x, sFloor.y),
+        new Phaser.Math.Vector2(sOut.x, sOut.y),
+        new Phaser.Math.Vector2(sOut.x, sOut.y - RAIL_H),
+        new Phaser.Math.Vector2(sFloor.x, sFloor.y - RAIL_H),
       ],
       true,
     );
@@ -344,10 +344,10 @@ export function renderBuilding(
     balcGfx.fillStyle(building.color.right, 1);
     balcGfx.fillPoints(
       [
-        new Phaser.Geom.Point(eFloor.x, eFloor.y),
-        new Phaser.Geom.Point(eOut.x, eOut.y),
-        new Phaser.Geom.Point(eOut.x, eOut.y - RAIL_H),
-        new Phaser.Geom.Point(eFloor.x, eFloor.y - RAIL_H),
+        new Phaser.Math.Vector2(eFloor.x, eFloor.y),
+        new Phaser.Math.Vector2(eOut.x, eOut.y),
+        new Phaser.Math.Vector2(eOut.x, eOut.y - RAIL_H),
+        new Phaser.Math.Vector2(eFloor.x, eFloor.y - RAIL_H),
       ],
       true,
     );
@@ -756,10 +756,10 @@ export function renderBuildingFootprint(
   gfx.setDepth(0.8);
 
   const pts = [
-    new Phaser.Geom.Point(N.x, N.y),
-    new Phaser.Geom.Point(E.x, E.y),
-    new Phaser.Geom.Point(S.x, S.y),
-    new Phaser.Geom.Point(W.x, W.y),
+    new Phaser.Math.Vector2(N.x, N.y),
+    new Phaser.Math.Vector2(E.x, E.y),
+    new Phaser.Math.Vector2(S.x, S.y),
+    new Phaser.Math.Vector2(W.x, W.y),
   ];
 
   gfx.fillStyle(building.color.top, 0.4);

@@ -993,11 +993,10 @@ export class GameScene extends Phaser.Scene {
       rt.camera.setScroll(minX, minY);
 
       // Batch-draw all objects into the RT
-      rt.beginDraw();
       for (const obj of objects) {
-        rt.batchDraw(obj);
+        rt.draw(obj);
       }
-      rt.endDraw();
+      rt.render();
 
       // Depth = southernmost building (highest depth) so RT sorts behind player on streets
       rt.setDepth(maxDepth);

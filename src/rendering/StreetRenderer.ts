@@ -62,10 +62,10 @@ export function renderStreetTile(
         const oy = (gap * s) / 2;
         streetLines.fillPoints(
           [
-            new Phaser.Geom.Point(x + ext + ox, y - hext + oy - hw),
-            new Phaser.Geom.Point(x + ext + ox, y - hext + oy + hw),
-            new Phaser.Geom.Point(x - ext + ox, y + hext + oy + hw),
-            new Phaser.Geom.Point(x - ext + ox, y + hext + oy - hw),
+            new Phaser.Math.Vector2(x + ext + ox, y - hext + oy - hw),
+            new Phaser.Math.Vector2(x + ext + ox, y - hext + oy + hw),
+            new Phaser.Math.Vector2(x - ext + ox, y + hext + oy + hw),
+            new Phaser.Math.Vector2(x - ext + ox, y + hext + oy - hw),
           ],
           true,
         );
@@ -76,10 +76,10 @@ export function renderStreetTile(
         const oy = (gap * s) / 2;
         streetLines.fillPoints(
           [
-            new Phaser.Geom.Point(x - ext + ox, y - hext + oy - hw),
-            new Phaser.Geom.Point(x - ext + ox, y - hext + oy + hw),
-            new Phaser.Geom.Point(x + ext + ox, y + hext + oy + hw),
-            new Phaser.Geom.Point(x + ext + ox, y + hext + oy - hw),
+            new Phaser.Math.Vector2(x - ext + ox, y - hext + oy - hw),
+            new Phaser.Math.Vector2(x - ext + ox, y - hext + oy + hw),
+            new Phaser.Math.Vector2(x + ext + ox, y + hext + oy + hw),
+            new Phaser.Math.Vector2(x + ext + ox, y + hext + oy - hw),
           ],
           true,
         );
@@ -93,10 +93,10 @@ export function renderStreetTile(
     streetLines.fillStyle(0xffffff, 0.4);
     streetLines.fillPoints(
       [
-        new Phaser.Geom.Point(x - tw / 4 - hw2, y - th / 4 + hw2 * 0.5),
-        new Phaser.Geom.Point(x - tw / 4 + hw2, y - th / 4 - hw2 * 0.5),
-        new Phaser.Geom.Point(x + tw / 4 + hw2, y + th / 4 - hw2 * 0.5),
-        new Phaser.Geom.Point(x + tw / 4 - hw2, y + th / 4 + hw2 * 0.5),
+        new Phaser.Math.Vector2(x - tw / 4 - hw2, y - th / 4 + hw2 * 0.5),
+        new Phaser.Math.Vector2(x - tw / 4 + hw2, y - th / 4 - hw2 * 0.5),
+        new Phaser.Math.Vector2(x + tw / 4 + hw2, y + th / 4 - hw2 * 0.5),
+        new Phaser.Math.Vector2(x + tw / 4 - hw2, y + th / 4 + hw2 * 0.5),
       ],
       true,
     );
@@ -105,10 +105,10 @@ export function renderStreetTile(
     streetLines.fillStyle(0xffffff, 0.4);
     streetLines.fillPoints(
       [
-        new Phaser.Geom.Point(x - tw / 4 - hw2, y - th / 4 + hw2 * 0.5),
-        new Phaser.Geom.Point(x - tw / 4 + hw2, y - th / 4 - hw2 * 0.5),
-        new Phaser.Geom.Point(x + tw / 4 + hw2, y + th / 4 - hw2 * 0.5),
-        new Phaser.Geom.Point(x + tw / 4 - hw2, y + th / 4 + hw2 * 0.5),
+        new Phaser.Math.Vector2(x - tw / 4 - hw2, y - th / 4 + hw2 * 0.5),
+        new Phaser.Math.Vector2(x - tw / 4 + hw2, y - th / 4 - hw2 * 0.5),
+        new Phaser.Math.Vector2(x + tw / 4 + hw2, y + th / 4 - hw2 * 0.5),
+        new Phaser.Math.Vector2(x + tw / 4 - hw2, y + th / 4 + hw2 * 0.5),
       ],
       true,
     );
@@ -117,10 +117,10 @@ export function renderStreetTile(
     streetLines.fillStyle(0xffffff, 0.4);
     streetLines.fillPoints(
       [
-        new Phaser.Geom.Point(x + tw / 4 - hw2, y - th / 4 - hw2 * 0.5),
-        new Phaser.Geom.Point(x + tw / 4 + hw2, y - th / 4 + hw2 * 0.5),
-        new Phaser.Geom.Point(x - tw / 4 + hw2, y + th / 4 + hw2 * 0.5),
-        new Phaser.Geom.Point(x - tw / 4 - hw2, y + th / 4 - hw2 * 0.5),
+        new Phaser.Math.Vector2(x + tw / 4 - hw2, y - th / 4 - hw2 * 0.5),
+        new Phaser.Math.Vector2(x + tw / 4 + hw2, y - th / 4 + hw2 * 0.5),
+        new Phaser.Math.Vector2(x - tw / 4 + hw2, y + th / 4 + hw2 * 0.5),
+        new Phaser.Math.Vector2(x - tw / 4 - hw2, y + th / 4 - hw2 * 0.5),
       ],
       true,
     );
@@ -129,10 +129,10 @@ export function renderStreetTile(
     streetLines.fillStyle(0xffffff, 0.4);
     streetLines.fillPoints(
       [
-        new Phaser.Geom.Point(x + tw / 4 - hw2, y - th / 4 - hw2 * 0.5),
-        new Phaser.Geom.Point(x + tw / 4 + hw2, y - th / 4 + hw2 * 0.5),
-        new Phaser.Geom.Point(x - tw / 4 + hw2, y + th / 4 + hw2 * 0.5),
-        new Phaser.Geom.Point(x - tw / 4 - hw2, y + th / 4 - hw2 * 0.5),
+        new Phaser.Math.Vector2(x + tw / 4 - hw2, y - th / 4 - hw2 * 0.5),
+        new Phaser.Math.Vector2(x + tw / 4 + hw2, y - th / 4 + hw2 * 0.5),
+        new Phaser.Math.Vector2(x - tw / 4 + hw2, y + th / 4 + hw2 * 0.5),
+        new Phaser.Math.Vector2(x - tw / 4 - hw2, y + th / 4 - hw2 * 0.5),
       ],
       true,
     );
@@ -150,10 +150,10 @@ export function renderStreetTile(
     streetLines.fillStyle(0xffffff, 0.35);
     streetLines.fillPoints(
       [
-        new Phaser.Geom.Point(x + tw / 4 - hw, y - th / 4 - hw * 0.5),
-        new Phaser.Geom.Point(x + tw / 4 + hw, y - th / 4 + hw * 0.5),
-        new Phaser.Geom.Point(x - tw / 4 + hw, y + th / 4 + hw * 0.5),
-        new Phaser.Geom.Point(x - tw / 4 - hw, y + th / 4 - hw * 0.5),
+        new Phaser.Math.Vector2(x + tw / 4 - hw, y - th / 4 - hw * 0.5),
+        new Phaser.Math.Vector2(x + tw / 4 + hw, y - th / 4 + hw * 0.5),
+        new Phaser.Math.Vector2(x - tw / 4 + hw, y + th / 4 + hw * 0.5),
+        new Phaser.Math.Vector2(x - tw / 4 - hw, y + th / 4 - hw * 0.5),
       ],
       true,
     );
@@ -168,10 +168,10 @@ export function renderStreetTile(
     streetLines.fillStyle(0xffffff, 0.35);
     streetLines.fillPoints(
       [
-        new Phaser.Geom.Point(x - tw / 4 + hw, y - th / 4 - hw * 0.5),
-        new Phaser.Geom.Point(x - tw / 4 - hw, y - th / 4 + hw * 0.5),
-        new Phaser.Geom.Point(x + tw / 4 - hw, y + th / 4 + hw * 0.5),
-        new Phaser.Geom.Point(x + tw / 4 + hw, y + th / 4 - hw * 0.5),
+        new Phaser.Math.Vector2(x - tw / 4 + hw, y - th / 4 - hw * 0.5),
+        new Phaser.Math.Vector2(x - tw / 4 - hw, y - th / 4 + hw * 0.5),
+        new Phaser.Math.Vector2(x + tw / 4 - hw, y + th / 4 + hw * 0.5),
+        new Phaser.Math.Vector2(x + tw / 4 + hw, y + th / 4 - hw * 0.5),
       ],
       true,
     );
@@ -197,20 +197,20 @@ export function renderSidewalkTile(
   sidewalkGfx.fillStyle(colors.left, 1);
   sidewalkGfx.fillPoints(
     [
-      new Phaser.Geom.Point(sx - tw / 2, sy - CURB_HEIGHT),
-      new Phaser.Geom.Point(sx, sy + th / 2 - CURB_HEIGHT),
-      new Phaser.Geom.Point(sx, sy + th / 2),
-      new Phaser.Geom.Point(sx - tw / 2, sy),
+      new Phaser.Math.Vector2(sx - tw / 2, sy - CURB_HEIGHT),
+      new Phaser.Math.Vector2(sx, sy + th / 2 - CURB_HEIGHT),
+      new Phaser.Math.Vector2(sx, sy + th / 2),
+      new Phaser.Math.Vector2(sx - tw / 2, sy),
     ],
     true,
   );
   sidewalkGfx.fillStyle(colors.right, 1);
   sidewalkGfx.fillPoints(
     [
-      new Phaser.Geom.Point(sx + tw / 2, sy - CURB_HEIGHT),
-      new Phaser.Geom.Point(sx, sy + th / 2 - CURB_HEIGHT),
-      new Phaser.Geom.Point(sx, sy + th / 2),
-      new Phaser.Geom.Point(sx + tw / 2, sy),
+      new Phaser.Math.Vector2(sx + tw / 2, sy - CURB_HEIGHT),
+      new Phaser.Math.Vector2(sx, sy + th / 2 - CURB_HEIGHT),
+      new Phaser.Math.Vector2(sx, sy + th / 2),
+      new Phaser.Math.Vector2(sx + tw / 2, sy),
     ],
     true,
   );
