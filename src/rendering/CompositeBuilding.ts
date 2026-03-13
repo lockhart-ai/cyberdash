@@ -1,6 +1,11 @@
 import type Phaser from "phaser";
 import { CYBERDARK_TINT } from "./BuildingTypes";
-import { addDebugGraphics, addDebugText } from "./debugOverlay";
+import {
+  addDebugGraphics,
+  addDebugText,
+  isDebugVisible,
+  isLabelsVisible,
+} from "./debugOverlay";
 
 /** Seeded PRNG (mulberry32) */
 function mulberry32(seed: number): () => number {
@@ -319,36 +324,40 @@ export function placeCompositeBuilding(
   const swX = bbox.left;
   const swY = y - 0.5 * (x - bbox.left);
 
-  // Debug: bounding box + chain dots
-  const gfx = scene.add.graphics();
-  gfx.setDepth(depth + 1);
-  const color = DEBUG_COLORS[debugColorIdx++ % DEBUG_COLORS.length];
-  gfx.lineStyle(2, color, 0.8);
-  gfx.strokeRect(
-    bbox.left,
-    bbox.top,
-    bbox.right - bbox.left,
-    bbox.bottom - bbox.top,
-  );
-  gfx.fillStyle(0xffffff, 1);
-  gfx.fillCircle(x, y, 4);
-  gfx.fillStyle(0xff0000, 1);
-  gfx.fillCircle(seX, seY, 4);
-  gfx.fillStyle(0x0088ff, 1);
-  gfx.fillCircle(swX, swY, 4);
-  addDebugGraphics(gfx);
+  // Debug: bounding box + chain dots (only created when debug is on)
+  if (isDebugVisible()) {
+    const gfx = scene.add.graphics();
+    gfx.setDepth(depth + 1);
+    const color = DEBUG_COLORS[debugColorIdx++ % DEBUG_COLORS.length];
+    gfx.lineStyle(2, color, 0.8);
+    gfx.strokeRect(
+      bbox.left,
+      bbox.top,
+      bbox.right - bbox.left,
+      bbox.bottom - bbox.top,
+    );
+    gfx.fillStyle(0xffffff, 1);
+    gfx.fillCircle(x, y, 4);
+    gfx.fillStyle(0xff0000, 1);
+    gfx.fillCircle(seX, seY, 4);
+    gfx.fillStyle(0x0088ff, 1);
+    gfx.fillCircle(swX, swY, 4);
+    addDebugGraphics(gfx);
+  }
 
-  const midY = (bbox.top + bbox.bottom) / 2;
-  const label = scene.add
-    .text(bbox.right + 4, midY, `CPC-${buildingIdx}`, {
-      fontSize: "12px",
-      color: "#4af",
-      backgroundColor: "#000c",
-      padding: { x: 3, y: 2 },
-    })
-    .setOrigin(0, 0.5)
-    .setDepth(depth + 1);
-  addDebugText(label);
+  if (isLabelsVisible()) {
+    const midY = (bbox.top + bbox.bottom) / 2;
+    const label = scene.add
+      .text(bbox.right + 4, midY, `CPC-${buildingIdx}`, {
+        fontSize: "12px",
+        color: "#4af",
+        backgroundColor: "#000c",
+        padding: { x: 3, y: 2 },
+      })
+      .setOrigin(0, 0.5)
+      .setDepth(depth + 1);
+    addDebugText(label);
+  }
 
   return {
     img,
@@ -508,24 +517,25 @@ export function placeSkyscraper(
   const swX = bbox.left;
   const swY = y - 0.5 * (x - bbox.left);
 
-  // Debug: bounding box + chain dots
-  const skyGfx = scene.add.graphics();
-  skyGfx.setDepth(depth + 1);
-  const skyColor = DEBUG_COLORS[debugColorIdx++ % DEBUG_COLORS.length];
-  skyGfx.lineStyle(2, skyColor, 0.8);
-  skyGfx.strokeRect(
-    bbox.left,
-    bbox.top,
-    bbox.right - bbox.left,
-    bbox.bottom - bbox.top,
-  );
-  skyGfx.fillStyle(0xffffff, 1);
-  skyGfx.fillCircle(x, y, 4);
-  skyGfx.fillStyle(0xff0000, 1);
-  skyGfx.fillCircle(seX, seY, 4);
-  skyGfx.fillStyle(0x0088ff, 1);
-  skyGfx.fillCircle(swX, swY, 4);
-  addDebugGraphics(skyGfx);
+  if (isDebugVisible()) {
+    const skyGfx = scene.add.graphics();
+    skyGfx.setDepth(depth + 1);
+    const skyColor = DEBUG_COLORS[debugColorIdx++ % DEBUG_COLORS.length];
+    skyGfx.lineStyle(2, skyColor, 0.8);
+    skyGfx.strokeRect(
+      bbox.left,
+      bbox.top,
+      bbox.right - bbox.left,
+      bbox.bottom - bbox.top,
+    );
+    skyGfx.fillStyle(0xffffff, 1);
+    skyGfx.fillCircle(x, y, 4);
+    skyGfx.fillStyle(0xff0000, 1);
+    skyGfx.fillCircle(seX, seY, 4);
+    skyGfx.fillStyle(0x0088ff, 1);
+    skyGfx.fillCircle(swX, swY, 4);
+    addDebugGraphics(skyGfx);
+  }
 
   return {
     img,

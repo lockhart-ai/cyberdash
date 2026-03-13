@@ -7,6 +7,10 @@ export function isDebugVisible(): boolean {
   return boxesVisible;
 }
 
+export function isLabelsVisible(): boolean {
+  return labelsVisible;
+}
+
 export function toggleDebug(): boolean {
   boxesVisible = !boxesVisible;
   for (const obj of boxObjects) obj.setVisible(boxesVisible);

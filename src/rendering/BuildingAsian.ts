@@ -1,6 +1,11 @@
 import type Phaser from "phaser";
 import { CYBERDARK_TINT } from "./BuildingTypes";
-import { addDebugGraphics, addDebugText } from "./debugOverlay";
+import {
+  addDebugGraphics,
+  addDebugText,
+  isDebugVisible,
+  isLabelsVisible,
+} from "./debugOverlay";
 
 /**
  * Traditional Asian Heritage stackable buildings.
@@ -257,31 +262,34 @@ export function placeAsianBuilding(
     curY -= h * LAYER_OVERLAP;
   }
 
-  // Debug: bounding box + south point + chain corners
-  const gfx = scene.add.graphics();
-  gfx.setDepth(depth + 0.5);
-  gfx.lineStyle(2, 0xffff00, 0.8);
-  gfx.strokeRect(bboxLeft, bboxTop, bboxRight - bboxLeft, bboxBottom - bboxTop);
-  gfx.fillStyle(0xffffff, 1);
-  gfx.fillCircle(x, y, 4);
-  gfx.fillStyle(0x00ff00, 1);
-  gfx.fillCircle(se.x, se.y, 3);
-  gfx.fillStyle(0xff0000, 1);
-  gfx.fillCircle(sw.x, sw.y, 3);
-  addDebugGraphics(gfx);
+  if (isDebugVisible()) {
+    const gfx = scene.add.graphics();
+    gfx.setDepth(depth + 0.5);
+    gfx.lineStyle(2, 0xffff00, 0.8);
+    gfx.strokeRect(bboxLeft, bboxTop, bboxRight - bboxLeft, bboxBottom - bboxTop);
+    gfx.fillStyle(0xffffff, 1);
+    gfx.fillCircle(x, y, 4);
+    gfx.fillStyle(0x00ff00, 1);
+    gfx.fillCircle(se.x, se.y, 3);
+    gfx.fillStyle(0xff0000, 1);
+    gfx.fillCircle(sw.x, sw.y, 3);
+    addDebugGraphics(gfx);
+  }
 
-  const layerLabel = layers.map((k) => k.replace("tac-", "")).join(",");
-  const midY = (bboxTop + bboxBottom) / 2;
-  const label = scene.add
-    .text(bboxRight + 4, midY, `TAC[${layerLabel}]`, {
-      fontSize: "10px",
-      color: "#4af",
-      backgroundColor: "#000c",
-      padding: { x: 3, y: 2 },
-    })
-    .setOrigin(0, 0.5)
-    .setDepth(depth + 1);
-  addDebugText(label);
+  if (isLabelsVisible()) {
+    const layerLabel = layers.map((k) => k.replace("tac-", "")).join(",");
+    const midY = (bboxTop + bboxBottom) / 2;
+    const label = scene.add
+      .text(bboxRight + 4, midY, `TAC[${layerLabel}]`, {
+        fontSize: "10px",
+        color: "#4af",
+        backgroundColor: "#000c",
+        padding: { x: 3, y: 2 },
+      })
+      .setOrigin(0, 0.5)
+      .setDepth(depth + 1);
+    addDebugText(label);
+  }
 
   return { images, se, sw, numFloors: layers.length - 1 };
 }

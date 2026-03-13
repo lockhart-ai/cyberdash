@@ -44,10 +44,12 @@ export class GameScene extends Phaser.Scene {
   private facing: Direction = "south";
   private cityMap!: number[][];
   private buildings: Building[] = [];
-  private walls!: Phaser.Physics.Arcade.StaticGroup;
   private fpsEl!: HTMLElement | null;
   private coordEl!: HTMLElement | null;
   private gridEl!: HTMLElement | null;
+
+  /** Per-block collection of building/sign objects to bake into RenderTextures */
+  private blockBuildingObjects = new Map<string, Phaser.GameObjects.GameObject[]>();
 
   // Walk tuning
   private walkSpeed = 160;
@@ -59,40 +61,21 @@ export class GameScene extends Phaser.Scene {
   private runAccel = 2400;
   private runDrag = 2000;
 
-  // Map settings — 5×5 blocks (1 perimeter on each end + 3 inner per dimension)
-  private readonly mapCols = 5 * COL_PERIOD;
-  private readonly mapRows = 5 * ROW_PERIOD;
+  // Map settings — 3×3 blocks
+  private readonly mapCols = 3 * COL_PERIOD;
+  private readonly mapRows = 3 * ROW_PERIOD;
 
   constructor() {
     super({ key: "GameScene" });
   }
 
   create() {
-    this.walls = this.physics.add.staticGroup();
     this.cityMap = this.generateCityMap();
     this.drawCityMap();
 
-    // Building collision bodies — disabled while composing new buildings
-    // for (let row = 0; row < this.mapRows; row++) {
-    //   for (let col = 0; col < this.mapCols; col++) {
-    //     if (this.cityMap[row][col] === TileType.BUILDING) {
-    //       const colMod = col % COL_PERIOD;
-    //       const rowMod = row % ROW_PERIOD;
-    //       const isEdge =
-    //         colMod === BLOCK_INTERIOR.colStart || colMod === BLOCK_INTERIOR.colEnd ||
-    //         rowMod === BLOCK_INTERIOR.rowStart || rowMod === BLOCK_INTERIOR.rowEnd;
-    //       if (!isEdge) continue;
-    //       const { x, y } = isoToScreen(col, row);
-    //       const zone = this.add.zone(x, y, TILE_W * 0.45, TILE_H * 0.45);
-    //       this.physics.add.existing(zone, true);
-    //       this.walls.add(zone);
-    //     }
-    //   }
-    // }
-
-    // Spawn player on a street tile (center of inner 3×3 area)
-    const spawnCol = 4 + 2 * COL_PERIOD;
-    const spawnRow = 4 + 2 * ROW_PERIOD;
+    // Spawn player on a street tile (center of grid)
+    const spawnCol = 4 + COL_PERIOD;
+    const spawnRow = 4 + ROW_PERIOD;
     const { x: spawnX, y: spawnY } = isoToScreen(spawnCol, spawnRow);
 
     this.player = this.add.sprite(spawnX, spawnY, "player-south");
@@ -102,11 +85,6 @@ export class GameScene extends Phaser.Scene {
     const playerBody = this.player.body as Phaser.Physics.Arcade.Body;
     playerBody.setSize(16, 8);
     playerBody.setOffset(16, 36);
-
-    this.physics.add.collider(this.player, this.walls);
-
-    // Perimeter boundary walls — invisible static bodies at building edges
-    this.addPerimeterWalls();
 
     // Camera
     this.cameras.main.setZoom(1.5);
@@ -223,40 +201,6 @@ export class GameScene extends Phaser.Scene {
     return this.facing;
   }
 
-  /**
-   * Place invisible static physics bodies along the 4 perimeter building edges
-   * to keep the player inside the inner 3×3 walkable area.
-   */
-  private addPerimeterWalls() {
-    const minCol = COL_PERIOD - SIDEWALK_WIDTH; // 34
-    const maxCol = 4 * COL_PERIOD + BLOCK_INTERIOR.colStart; // 174
-    const minRow = ROW_PERIOD - SIDEWALK_WIDTH; // 54
-    const maxRow = 4 * ROW_PERIOD + BLOCK_INTERIOR.rowStart; // 254
-
-    // Place wall bodies every 2 tiles along each edge
-    const STEP = 2;
-
-    // NW col edge (low col boundary) and SE col edge (high col boundary)
-    for (let row = minRow; row <= maxRow; row += STEP) {
-      for (const col of [minCol, maxCol]) {
-        const { x, y } = isoToScreen(col, row);
-        const zone = this.add.zone(x, y, TILE_W * 0.5, TILE_H * 0.5);
-        this.physics.add.existing(zone, true);
-        this.walls.add(zone);
-      }
-    }
-
-    // NW row edge (low row boundary) and SE row edge (high row boundary)
-    for (let col = minCol; col <= maxCol; col += STEP) {
-      for (const row of [minRow, maxRow]) {
-        const { x, y } = isoToScreen(col, row);
-        const zone = this.add.zone(x, y, TILE_W * 0.5, TILE_H * 0.5);
-        this.physics.add.existing(zone, true);
-        this.walls.add(zone);
-      }
-    }
-  }
-
   private generateCityMap(): number[][] {
     const map: number[][] = [];
 
@@ -268,15 +212,7 @@ export class GameScene extends Phaser.Scene {
         const inStreetCol = colMod < STREET_WIDTH;
         const inStreetRow = rowMod < STREET_WIDTH;
 
-        // Perimeter blocks (first & last in each dimension): suppress cross-streets
-        const isPerimCol =
-          col < COL_PERIOD || col >= this.mapCols - COL_PERIOD;
-        const isPerimRow =
-          row < ROW_PERIOD || row >= this.mapRows - ROW_PERIOD;
-        const suppressStreet =
-          (isPerimCol && inStreetRow) || (isPerimRow && inStreetCol);
-
-        if (!suppressStreet && (inStreetCol || inStreetRow)) {
+        if (inStreetCol || inStreetRow) {
           map[row][col] = TileType.STREET;
         } else {
           const colEdge =
@@ -457,34 +393,19 @@ export class GameScene extends Phaser.Scene {
     // this.placeSteamVents();
     // this.drawShowroom();
 
-    this.placeTestBuildings();
+    this.placeBuildings();
+    this.bakeBlockObjects();
     this.placeParkingMeters();
     this.placeLightPoles();
-    this.placeTestCar();
+    this.placeCars();
   }
 
-  private placeTestBuildings() {
+  private placeBuildings() {
     const numBlockCols = Math.floor(this.mapCols / COL_PERIOD);
     const numBlockRows = Math.floor(this.mapRows / ROW_PERIOD);
     for (let bCol = 0; bCol < numBlockCols; bCol++) {
       for (let bRow = 0; bRow < numBlockRows; bRow++) {
-        const isPerimCol = bCol === 0 || bCol === numBlockCols - 1;
-        const isPerimRow = bRow === 0 || bRow === numBlockRows - 1;
-        const opts: { seRowStart?: number; swColStart?: number } = {};
-
-        // Perimeter col: extend SE chain to fill gaps between blocks
-        if (isPerimCol && bRow > 0) {
-          opts.seRowStart =
-            (bRow - 1) * ROW_PERIOD + BLOCK_INTERIOR.rowEnd + 1;
-        }
-
-        // Perimeter row: extend SW chain to fill gaps between blocks
-        if (isPerimRow && bCol > 0) {
-          opts.swColStart =
-            (bCol - 1) * COL_PERIOD + BLOCK_INTERIOR.colEnd + 1;
-        }
-
-        this.placeBlockComposites(bCol, bRow, opts);
+        this.placeBlockComposites(bCol, bRow);
       }
     }
   }
@@ -495,12 +416,21 @@ export class GameScene extends Phaser.Scene {
    * 2. Chain SW facades NW (screen-left) from anchor's SW corner
    * 3. Chain SE buildings SE (screen-right) from anchor's SE corner
    */
-  private placeBlockComposites(
-    bCol: number,
-    bRow: number,
-    opts?: { seRowStart?: number; swColStart?: number },
-  ) {
+  /** Push game objects into the per-block collection for later RT baking. */
+  private collectForBlock(bCol: number, bRow: number, objects: Phaser.GameObjects.GameObject[]) {
+    if (objects.length === 0) return;
+    const key = `${bCol}-${bRow}`;
+    const arr = this.blockBuildingObjects.get(key);
+    if (arr) {
+      arr.push(...objects);
+    } else {
+      this.blockBuildingObjects.set(key, [...objects]);
+    }
+  }
+
+  private placeBlockComposites(bCol: number, bRow: number) {
     const TARGET_H = 800;
+    const collected: Phaser.GameObjects.GameObject[] = [];
 
     const blockColEnd = bCol * COL_PERIOD + BLOCK_INTERIOR.colEnd;
     const blockRowEnd = bRow * ROW_PERIOD + BLOCK_INTERIOR.rowEnd;
@@ -529,12 +459,13 @@ export class GameScene extends Phaser.Scene {
     });
     // Depth at NE-most ground point so player on sidewalk sorts in front
     anchor.img.setDepth(Math.min(anchor.se.y, anchor.sw.y) / (TILE_H / 2));
+    collected.push(anchor.img);
 
     // Neon signs on anchor's SE wall
     const anchorH = anchor.bbox.bottom - anchor.bbox.top;
     const anchorSignFloors = Math.floor((anchorH * 0.65) / STORY_HEIGHT);
     if (anchorSignFloors >= 2) {
-      placeNeonSigns(this, {
+      collected.push(...placeNeonSigns(this, {
         seed: anchorSeed,
         id: `comp-anchor-${bCol}-${bRow}`,
         edgeStart: { x: startPos.x, y: startPos.y },
@@ -544,9 +475,9 @@ export class GameScene extends Phaser.Scene {
         depth: anchor.img.depth,
         buildingIdx: anchor.buildingIdx,
         buildingImages: [anchor.img],
-      });
+      }));
       // Neon signs on anchor's SW wall
-      placeNeonSigns(this, {
+      collected.push(...placeNeonSigns(this, {
         seed: anchorSeed + 1000,
         id: `comp-anchor-sw-${bCol}-${bRow}`,
         edgeStart: anchor.sw,
@@ -557,11 +488,11 @@ export class GameScene extends Phaser.Scene {
         buildingIdx: anchor.buildingIdx,
         buildingImages: [anchor.img],
         wall: "sw",
-      });
+      }));
     }
 
     // --- Chain SW facades NW (screen-left) from anchor's SW corner ---
-    const swChainColStart = opts?.swColStart ?? blockColStart;
+    const swChainColStart = blockColStart;
     const nwLimitX = isoToScreen(swChainColStart, blockRowEnd).x;
     let southX = anchor.sw.x;
     let southY = anchor.sw.y;
@@ -610,12 +541,13 @@ export class GameScene extends Phaser.Scene {
         buildingIdx: chosenIdx,
       });
       placed.img.setDepth(placed.sw.y / (TILE_H / 2));
+      collected.push(placed.img);
 
       // Neon signs on SW facade's SE wall
       const swH = placed.bbox.bottom - placed.bbox.top;
       const swSignFloors = Math.floor((swH * 0.65) / STORY_HEIGHT);
       if (swSignFloors >= 2) {
-        placeNeonSigns(this, {
+        collected.push(...placeNeonSigns(this, {
           seed,
           id: `comp-sw-${bCol}-${bRow}-${i}`,
           edgeStart: { x: swPlacedX, y: swPlacedY },
@@ -625,9 +557,9 @@ export class GameScene extends Phaser.Scene {
           depth: placed.img.depth,
           buildingIdx: placed.buildingIdx,
           buildingImages: [placed.img],
-        });
+        }));
         // Neon signs on SW facade's SW wall (main facade)
-        placeNeonSigns(this, {
+        collected.push(...placeNeonSigns(this, {
           seed: seed + 1000,
           id: `comp-sw-main-${bCol}-${bRow}-${i}`,
           edgeStart: placed.sw,
@@ -638,7 +570,7 @@ export class GameScene extends Phaser.Scene {
           buildingIdx: placed.buildingIdx,
           buildingImages: [placed.img],
           wall: "sw",
-        });
+        }));
       }
 
       southX = placed.sw.x;
@@ -648,7 +580,7 @@ export class GameScene extends Phaser.Scene {
 
     // --- Chain SE buildings SE (screen-right) from anchor's SE corner ---
     // The anchor SW building is the first building in the SE chain.
-    const seChainRowStart = opts?.seRowStart ?? blockRowStart;
+    const seChainRowStart = blockRowStart;
     const seLimitX = isoToScreen(blockColEnd, seChainRowStart).x;
     southX = anchor.se.x;
     southY = anchor.se.y;
@@ -680,11 +612,12 @@ export class GameScene extends Phaser.Scene {
         });
         const asianDepth = asianPlaced.se.y / (TILE_H / 2);
         for (const img of asianPlaced.images) img.setDepth(asianDepth);
+        collected.push(...asianPlaced.images);
 
         // Neon signs on asian building's SE wall (floors only, not roof, not ground)
         const asianSignFloors = asianPlaced.numFloors - 1;
         if (asianSignFloors >= 2) {
-          placeNeonSigns(this, {
+          collected.push(...placeNeonSigns(this, {
             seed,
             id: `asian-${bCol}-${bRow}-${i}`,
             edgeStart: { x: asianAnchorX, y: asianAnchorY },
@@ -693,7 +626,7 @@ export class GameScene extends Phaser.Scene {
             floorHeight: STORY_HEIGHT,
             depth: asianDepth,
             buildingImages: asianPlaced.images,
-          });
+          }));
         }
 
         // Chain from the SE corner of the placed Asian building
@@ -736,12 +669,13 @@ export class GameScene extends Phaser.Scene {
         buildingIdx: chosenIdx,
       });
       placed.img.setDepth(placed.se.y / (TILE_H / 2));
+      collected.push(placed.img);
 
       // Neon signs on SE chain building's SE wall
       const seH = placed.bbox.bottom - placed.bbox.top;
       const seSignFloors = Math.floor((seH * 0.65) / STORY_HEIGHT);
       if (seSignFloors >= 2) {
-        placeNeonSigns(this, {
+        collected.push(...placeNeonSigns(this, {
           seed,
           id: `comp-se-${bCol}-${bRow}-${i}`,
           edgeStart: { x: sePlacedX, y: sePlacedY },
@@ -751,7 +685,7 @@ export class GameScene extends Phaser.Scene {
           depth: placed.img.depth,
           buildingIdx: placed.buildingIdx,
           buildingImages: [placed.img],
-        });
+        }));
       }
 
       southX = placed.se.x;
@@ -773,7 +707,7 @@ export class GameScene extends Phaser.Scene {
     ) {
       const skyPos = isoToScreen(skyCol, row);
       const skySeed = ((bCol * 48271) ^ (bRow * 65537) ^ (i * 91573)) >>> 0;
-      placeSkyscraper(this, {
+      const sky = placeSkyscraper(this, {
         targetH: TARGET_H,
         x: skyPos.x,
         y: skyPos.y,
@@ -781,7 +715,80 @@ export class GameScene extends Phaser.Scene {
         buildingIdx: skySeed % 3,
         direction: CompositeDir.SE,
       });
+      collected.push(sky.img);
     }
+
+    this.collectForBlock(bCol, bRow, collected);
+  }
+
+  /**
+   * Bake each block's collected building objects into a single RenderTexture.
+   * Replaces thousands of individual images with one RT per block.
+   */
+  private bakeBlockObjects() {
+    let totalBaked = 0;
+    let rtCount = 0;
+
+    for (const [key, objects] of this.blockBuildingObjects) {
+      if (objects.length === 0) continue;
+
+      // Sort by depth for correct compositing order within the RT
+      objects.sort((a, b) =>
+        ((a as Phaser.GameObjects.Image).depth ?? 0) -
+        ((b as Phaser.GameObjects.Image).depth ?? 0),
+      );
+
+      // Compute bounding box of all objects
+      let minX = Infinity, minY = Infinity, maxX = -Infinity, maxY = -Infinity;
+      let maxDepth = -Infinity;
+
+      for (const obj of objects) {
+        const img = obj as Phaser.GameObjects.Image;
+        const left = img.x - img.displayWidth * img.originX;
+        const top = img.y - img.displayHeight * img.originY;
+        const right = left + img.displayWidth;
+        const bottom = top + img.displayHeight;
+        if (left < minX) minX = left;
+        if (top < minY) minY = top;
+        if (right > maxX) maxX = right;
+        if (bottom > maxY) maxY = bottom;
+        if (img.depth > maxDepth) maxDepth = img.depth;
+      }
+
+      // Add 1px padding to avoid clipping
+      minX = Math.floor(minX) - 1;
+      minY = Math.floor(minY) - 1;
+      const width = Math.ceil(maxX - minX) + 2;
+      const height = Math.ceil(maxY - minY) + 2;
+
+      // Create RenderTexture at the bounding box position
+      const rt = this.add.renderTexture(minX, minY, width, height);
+      rt.setOrigin(0, 0);
+
+      // Set internal camera to map world coords → RT local coords
+      rt.camera.setScroll(minX, minY);
+
+      // Batch-draw all objects into the RT
+      rt.beginDraw();
+      for (const obj of objects) {
+        rt.batchDraw(obj);
+      }
+      rt.endDraw();
+
+      // Depth = southernmost building (highest depth) so RT sorts behind player on streets
+      rt.setDepth(maxDepth);
+
+      // Destroy originals — they're now baked into the RT
+      for (const obj of objects) {
+        obj.destroy();
+      }
+
+      totalBaked += objects.length;
+      rtCount++;
+    }
+
+    this.blockBuildingObjects.clear();
+    console.log(`[RT Bake] Baked ${totalBaked} objects into ${rtCount} RenderTextures`);
   }
 
   /**
@@ -950,7 +957,7 @@ export class GameScene extends Phaser.Scene {
    * Vertical streets (colMod 0-7): cars face NE
    * Horizontal streets (rowMod 0-7): cars face SE
    */
-  private placeTestCar() {
+  private placeCars() {
     const TARGET_H = 120;
     const CURB_OFFSET = 2;
     let count = 0;

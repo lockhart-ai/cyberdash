@@ -1,7 +1,7 @@
 import type Phaser from "phaser";
 import { BILLBOARD_SE_KEYS, BILLBOARD_SW_KEYS } from "./BillboardTrim";
 import { buildingHash } from "./BuildingTypes";
-import { addDebugText } from "./debugOverlay";
+import { addDebugText, isLabelsVisible } from "./debugOverlay";
 
 /** Composite building indices (CPC-N) that have geometry too complex for neon signs */
 const NO_SIGN_BUILDINGS = new Set<number>([3]);
@@ -191,13 +191,15 @@ export function placeNeonSigns(
             pimg.setScale(pscale);
             pimg.setDepth(depth + 0.19);
             objects.push(pimg);
-            const pLabel = scene.add.text(pcx, pcy, pbbKey, {
-              fontSize: "14px",
-              color: "#00ccff",
-              backgroundColor: "#000c",
-            });
-            pLabel.setOrigin(0.5, 0.5).setDepth(depth + 0.2);
-            addDebugText(pLabel);
+            if (isLabelsVisible()) {
+              const pLabel = scene.add.text(pcx, pcy, pbbKey, {
+                fontSize: "14px",
+                color: "#00ccff",
+                backgroundColor: "#000c",
+              });
+              pLabel.setOrigin(0.5, 0.5).setDepth(depth + 0.2);
+              addDebugText(pLabel);
+            }
           }
         }
       }
@@ -249,13 +251,15 @@ export function placeNeonSigns(
             fimg.setScale(fscale);
             fimg.setDepth(depth + 0.13);
             objects.push(fimg);
-            const fLabel = scene.add.text(fcx, fcy, fbbKey, {
-              fontSize: "14px",
-              color: "#00ccff",
-              backgroundColor: "#000c",
-            });
-            fLabel.setOrigin(0.5, 0.5).setDepth(depth + 0.14);
-            addDebugText(fLabel);
+            if (isLabelsVisible()) {
+              const fLabel = scene.add.text(fcx, fcy, fbbKey, {
+                fontSize: "14px",
+                color: "#00ccff",
+                backgroundColor: "#000c",
+              });
+              fLabel.setOrigin(0.5, 0.5).setDepth(depth + 0.14);
+              addDebugText(fLabel);
+            }
           }
         }
       }
