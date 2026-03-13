@@ -68,9 +68,9 @@ export class GameScene extends Phaser.Scene {
   private runAccel = 2400;
   private runDrag = 2000;
 
-  // Map settings — 1×1 block
-  private readonly mapCols = 1 * COL_PERIOD;
-  private readonly mapRows = 1 * ROW_PERIOD;
+  // Map settings — 4×4 blocks
+  private readonly mapCols = 4 * COL_PERIOD;
+  private readonly mapRows = 4 * ROW_PERIOD;
 
   constructor() {
     super({ key: "GameScene" });
