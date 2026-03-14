@@ -940,12 +940,13 @@ export class GameScene extends Phaser.Scene {
    * into a grid of static RenderTextures. Eliminates per-frame Graphics resubmission.
    */
   private bakeGroundTiles() {
+    // Draw order: back to front (last drawn = on top)
     const groundObjs: Phaser.GameObjects.GameObject[] = [
       this.streetBlitter,
+      this.streetLines,
       ...this.sidewalkBlitters,
       this.sidewalkGfx,
       this.sidewalkLines,
-      this.streetLines,
     ];
 
     // World bounds from perimeter extents (generous padding)
