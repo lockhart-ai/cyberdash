@@ -51,12 +51,13 @@ export class GameScene extends Phaser.Scene {
   /** Per-block collection of building/sign objects to bake into RenderTextures */
   private blockBuildingObjects = new Map<string, Phaser.GameObjects.GameObject[]>();
 
-  /** Shared sidewalk rendering objects (initialized in drawCityMap) */
+  /** Shared rendering objects (initialized in drawCityMap) */
   private sidewalkGfx!: Phaser.GameObjects.Graphics;
   private sidewalkLines!: Phaser.GameObjects.Graphics;
   private sidewalkBlitters!: Phaser.GameObjects.Blitter[];
   private streetBlitter!: Phaser.GameObjects.Blitter;
   private streetLines!: Phaser.GameObjects.Graphics;
+
 
   // Walk tuning
   private walkSpeed = 160;
@@ -353,29 +354,25 @@ export class GameScene extends Phaser.Scene {
     this.streetLines = this.add.graphics();
     this.streetLines.setDepth(0.5);
 
-    // Batch street tile images into a blitter (single draw call)
     this.streetBlitter = this.add.blitter(0, 0, "street").setDepth(0);
 
-    // Batch sidewalk tile images into blitters (one per variant, vs ~9500 individual Images)
     this.sidewalkBlitters = [];
     for (let v = 0; v < this.NUM_SIDEWALK_VARIANTS; v++) {
       this.sidewalkBlitters.push(
         this.add.blitter(0, 0, `sidewalk-${v}`).setDepth(0.6),
       );
     }
-    const sidewalkBlitters = this.sidewalkBlitters;
 
     for (let row = 0; row < this.mapRows; row++) {
       for (let col = 0; col < this.mapCols; col++) {
         const tile = this.cityMap[row][col];
 
         if (tile === TileType.BUILDING) {
-          // Sidewalk ground under buildings (visible through inset gaps)
           const { x, y } = isoToScreen(col, row);
           const v = Math.floor(
             this.hash(col, row, 500) * this.NUM_SIDEWALK_VARIANTS,
           );
-          sidewalkBlitters[v].create(
+          this.sidewalkBlitters[v].create(
             x - TILE_W / 2,
             y - CURB_HEIGHT - TILE_H / 2,
           );
@@ -388,27 +385,32 @@ export class GameScene extends Phaser.Scene {
           const v = Math.floor(
             this.hash(col, row, 500) * this.NUM_SIDEWALK_VARIANTS,
           );
-          sidewalkBlitters[v].create(
+          this.sidewalkBlitters[v].create(
             x - TILE_W / 2,
             y - CURB_HEIGHT - TILE_H / 2,
           );
-          renderSidewalkTile(this, col, row, this.sidewalkGfx, this.sidewalkLines);
+          renderSidewalkTile(this, col, row, this.sidewalkGfx, this.sidewalkLines, this.cityMap);
         }
       }
     }
 
-    // Buildings, props, and showroom — disabled while composing new buildings
-    // for (const building of this.buildings) { ... }
-    // this.placeTrafficLights();
-    // this.placeSewerGrates();
-    // this.placeSteamVents();
-    // this.drawShowroom();
-
     this.placeBuildings();
+    this.bakeGroundTiles();
     this.bakeBlockObjects();
     this.placeParkingMeters();
     this.placeLightPoles();
     this.placeCars();
+  }
+
+  /** Place a sidewalk tile via blitter + edge-only curb Graphics + grid lines */
+  private addSidewalkTile(col: number, row: number) {
+    const { x, y } = isoToScreen(col, row);
+    const v = Math.floor(this.hash(col, row, 500) * this.NUM_SIDEWALK_VARIANTS);
+    this.sidewalkBlitters[v].create(
+      x - TILE_W / 2,
+      y - CURB_HEIGHT - TILE_H / 2,
+    );
+    renderSidewalkTile(this, col, row, this.sidewalkGfx, this.sidewalkLines, this.cityMap);
   }
 
   private placeBuildings() {
@@ -849,10 +851,7 @@ export class GameScene extends Phaser.Scene {
       // Sidewalk tiles between NW road edge and perimeter buildings
       for (let row = nwRowStart; row <= nwRowEnd; row++) {
         for (let col = perimCol - 5; col < bCol * COL_PERIOD; col++) {
-          const { x, y } = isoToScreen(col, row);
-          const v = Math.floor(this.hash(col, row, 500) * this.NUM_SIDEWALK_VARIANTS);
-          this.sidewalkBlitters[v].create(x - TILE_W / 2, y - CURB_HEIGHT - TILE_H / 2);
-          renderSidewalkTile(this, col, row, this.sidewalkGfx, this.sidewalkLines);
+          this.addSidewalkTile(col, row);
         }
       }
     }
@@ -866,10 +865,7 @@ export class GameScene extends Phaser.Scene {
       // Sidewalk tiles between NE road edge and perimeter buildings
       for (let col = neColStart; col <= neColEnd; col++) {
         for (let row = perimRow - 5; row < bRow * ROW_PERIOD; row++) {
-          const { x, y } = isoToScreen(col, row);
-          const v = Math.floor(this.hash(col, row, 500) * this.NUM_SIDEWALK_VARIANTS);
-          this.sidewalkBlitters[v].create(x - TILE_W / 2, y - CURB_HEIGHT - TILE_H / 2);
-          renderSidewalkTile(this, col, row, this.sidewalkGfx, this.sidewalkLines);
+          this.addSidewalkTile(col, row);
         }
       }
     }
@@ -895,10 +891,7 @@ export class GameScene extends Phaser.Scene {
       // SE sidewalk tiles
       for (let row = nwRowStart; row <= seRowEnd; row++) {
         for (let col = (bCol + 1) * COL_PERIOD + STREET_WIDTH; col <= sePerimCol + 14; col++) {
-          const { x, y } = isoToScreen(col, row);
-          const v = Math.floor(this.hash(col, row, 500) * this.NUM_SIDEWALK_VARIANTS);
-          this.sidewalkBlitters[v].create(x - TILE_W / 2, y - CURB_HEIGHT - TILE_H / 2);
-          renderSidewalkTile(this, col, row, this.sidewalkGfx, this.sidewalkLines);
+          this.addSidewalkTile(col, row);
         }
       }
     }
@@ -924,10 +917,7 @@ export class GameScene extends Phaser.Scene {
       // SW sidewalk tiles
       for (let col = neColStart; col <= swColEnd; col++) {
         for (let row = (bRow + 1) * ROW_PERIOD + STREET_WIDTH; row <= swPerimRow + 17; row++) {
-          const { x, y } = isoToScreen(col, row);
-          const v = Math.floor(this.hash(col, row, 500) * this.NUM_SIDEWALK_VARIANTS);
-          this.sidewalkBlitters[v].create(x - TILE_W / 2, y - CURB_HEIGHT - TILE_H / 2);
-          renderSidewalkTile(this, col, row, this.sidewalkGfx, this.sidewalkLines);
+          this.addSidewalkTile(col, row);
         }
       }
     }
@@ -943,6 +933,64 @@ export class GameScene extends Phaser.Scene {
     allObjects.push(...blockSE);
 
     this.collectForBlock(key, allObjects);
+  }
+
+  /**
+   * Bake all ground objects (blitters, curb Graphics, grid lines, street markings)
+   * into a grid of static RenderTextures. Eliminates per-frame Graphics resubmission.
+   */
+  private bakeGroundTiles() {
+    const groundObjs: Phaser.GameObjects.GameObject[] = [
+      this.streetBlitter,
+      ...this.sidewalkBlitters,
+      this.sidewalkGfx,
+      this.sidewalkLines,
+      this.streetLines,
+    ];
+
+    // World bounds from perimeter extents (generous padding)
+    const padCol = 20, padRow = 20;
+    const corners = [
+      isoToScreen(-padCol, this.mapRows + padRow),  // left
+      isoToScreen(this.mapCols + padCol, -padRow),   // right
+      isoToScreen(-padCol, -padRow),                  // top
+      isoToScreen(this.mapCols + padCol, this.mapRows + padRow), // bottom
+    ];
+
+    const worldMinX = corners[0].x - TILE_W;
+    const worldMaxX = corners[1].x + TILE_W;
+    const worldMinY = corners[2].y - TILE_H;
+    const worldMaxY = corners[3].y + TILE_H + CURB_HEIGHT;
+
+    const CHUNK = 4096;
+    const chunksX = Math.ceil((worldMaxX - worldMinX) / CHUNK);
+    const chunksY = Math.ceil((worldMaxY - worldMinY) / CHUNK);
+
+    for (let cy = 0; cy < chunksY; cy++) {
+      for (let cx = 0; cx < chunksX; cx++) {
+        const rtX = worldMinX + cx * CHUNK;
+        const rtY = worldMinY + cy * CHUNK;
+        const rtW = Math.min(CHUNK, Math.ceil(worldMaxX - rtX));
+        const rtH = Math.min(CHUNK, Math.ceil(worldMaxY - rtY));
+
+        const rt = this.add.renderTexture(rtX, rtY, rtW, rtH);
+        rt.setOrigin(0, 0);
+        rt.camera.setScroll(rtX, rtY);
+
+        for (const obj of groundObjs) {
+          rt.draw(obj);
+        }
+        rt.render();
+        rt.setDepth(0);
+      }
+    }
+
+    // Destroy originals — they're now baked
+    for (const obj of groundObjs) {
+      obj.destroy();
+    }
+
+    console.log(`[Ground Bake] Baked ground into ${chunksX * chunksY} RTs (${chunksX}×${chunksY} grid, ${CHUNK}px chunks)`);
   }
 
   /**

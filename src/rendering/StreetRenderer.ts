@@ -180,6 +180,7 @@ export function renderStreetTile(
 
 /**
  * Render a sidewalk tile with curb walls and grid lines.
+ * Only draws curb faces that are actually visible (neighbor is street or out of bounds).
  */
 export function renderSidewalkTile(
   _scene: Phaser.Scene,
@@ -187,33 +188,48 @@ export function renderSidewalkTile(
   row: number,
   sidewalkGfx: Phaser.GameObjects.Graphics,
   sidewalkLines: Phaser.GameObjects.Graphics,
+  cityMap?: number[][],
 ): void {
   const tw = TILE_W;
   const th = TILE_H;
   const { x: sx, y: sy } = isoToScreen(col, row);
 
-  // Curb walls (top face image handled by blitter in drawCityMap)
+  // Curb walls — only draw faces exposed to a lower surface (street / edge)
+  // Left face (W→S edge) is hidden by a raised tile at (col, row+1)
+  // Right face (E→S edge) is hidden by a raised tile at (col+1, row)
   const colors = TILE_COLORS[TileType.SIDEWALK];
-  sidewalkGfx.fillStyle(colors.left, 1);
-  sidewalkGfx.fillPoints(
-    [
-      new Phaser.Math.Vector2(sx - tw / 2, sy - CURB_HEIGHT),
-      new Phaser.Math.Vector2(sx, sy + th / 2 - CURB_HEIGHT),
-      new Phaser.Math.Vector2(sx, sy + th / 2),
-      new Phaser.Math.Vector2(sx - tw / 2, sy),
-    ],
-    true,
-  );
-  sidewalkGfx.fillStyle(colors.right, 1);
-  sidewalkGfx.fillPoints(
-    [
-      new Phaser.Math.Vector2(sx + tw / 2, sy - CURB_HEIGHT),
-      new Phaser.Math.Vector2(sx, sy + th / 2 - CURB_HEIGHT),
-      new Phaser.Math.Vector2(sx, sy + th / 2),
-      new Phaser.Math.Vector2(sx + tw / 2, sy),
-    ],
-    true,
-  );
+
+  const leftNeighbor = cityMap?.[row + 1]?.[col];
+  const drawLeft = leftNeighbor === undefined || leftNeighbor === TileType.STREET;
+
+  const rightNeighbor = cityMap?.[row]?.[col + 1];
+  const drawRight = rightNeighbor === undefined || rightNeighbor === TileType.STREET;
+
+  if (drawLeft) {
+    sidewalkGfx.fillStyle(colors.left, 1);
+    sidewalkGfx.fillPoints(
+      [
+        new Phaser.Math.Vector2(sx - tw / 2, sy - CURB_HEIGHT),
+        new Phaser.Math.Vector2(sx, sy + th / 2 - CURB_HEIGHT),
+        new Phaser.Math.Vector2(sx, sy + th / 2),
+        new Phaser.Math.Vector2(sx - tw / 2, sy),
+      ],
+      true,
+    );
+  }
+
+  if (drawRight) {
+    sidewalkGfx.fillStyle(colors.right, 1);
+    sidewalkGfx.fillPoints(
+      [
+        new Phaser.Math.Vector2(sx + tw / 2, sy - CURB_HEIGHT),
+        new Phaser.Math.Vector2(sx, sy + th / 2 - CURB_HEIGHT),
+        new Phaser.Math.Vector2(sx, sy + th / 2),
+        new Phaser.Math.Vector2(sx + tw / 2, sy),
+      ],
+      true,
+    );
+  }
 
   // Grid lines
   sidewalkLines.lineStyle(1, 0x2e2e3e, 0.5);
