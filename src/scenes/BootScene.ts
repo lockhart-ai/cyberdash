@@ -4,7 +4,7 @@ import { trimAsianModules } from "../rendering/BuildingAsian";
 import {
   trimCompositeBuildings,
   trimSkyscrapers,
-} from "../rendering/CompositeBuilding";
+} from "../rendering/BuildingComposite";
 import { findOpaqueBounds } from "../utils/trim";
 
 export const DIRECTIONS = [

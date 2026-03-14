@@ -5,7 +5,7 @@ import {
   addDebugText,
   isDebugVisible,
   isLabelsVisible,
-} from "./debugOverlay";
+} from "./DebugOverlay";
 import { mulberry32 } from "../utils/rng";
 import { findOpaqueBounds } from "../utils/trim";
 

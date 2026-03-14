@@ -1,7 +1,7 @@
 import type Phaser from "phaser";
 import { BILLBOARD_SE_KEYS, BILLBOARD_SW_KEYS } from "./BillboardTrim";
 import { buildingHash } from "./BuildingTypes";
-import { addDebugText, isLabelsVisible } from "./debugOverlay";
+import { addDebugText, isLabelsVisible } from "./DebugOverlay";
 
 /** Composite building indices (CPC-N) that have geometry too complex for neon signs */
 const NO_SIGN_BUILDINGS = new Set<number>([3]);

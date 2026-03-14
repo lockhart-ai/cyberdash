@@ -19,8 +19,8 @@ import {
   pickCompositeFitting,
   placeCompositeBuilding,
   placeSkyscraper,
-} from "../rendering/CompositeBuilding";
-import { toggleDebug, toggleLabels } from "../rendering/debugOverlay";
+} from "../rendering/BuildingComposite";
+import { toggleDebug, toggleLabels } from "../rendering/DebugOverlay";
 import { placeNeonSigns } from "../rendering/NeonSigns";
 import {
   renderSidewalkTile,
