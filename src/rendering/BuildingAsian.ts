@@ -6,6 +6,8 @@ import {
   isDebugVisible,
   isLabelsVisible,
 } from "./debugOverlay";
+import { mulberry32 } from "../utils/rng";
+import { findOpaqueBounds } from "../utils/trim";
 
 /**
  * Traditional Asian Heritage stackable buildings.
@@ -19,17 +21,6 @@ import {
  *   Upper layers stack centered (origin 0.5, 1) with overlap.
  * - Layers overlap by LAYER_OVERLAP fraction of layer height to hide seams.
  */
-
-/** Seeded PRNG (mulberry32) */
-function mulberry32(seed: number): () => number {
-  let s = seed | 0;
-  return () => {
-    s = (s + 0x6d2b79f5) | 0;
-    let t = Math.imul(s ^ (s >>> 15), 1 | s);
-    t = (t + Math.imul(t ^ (t >>> 7), 61 | t)) ^ t;
-    return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
-  };
-}
 
 // --- Module pools (keys refer to source textures; trimmed as `{key}-trim`) ---
 
@@ -104,29 +95,14 @@ export function trimAsianModules(scene: Phaser.Scene): void {
       frame.cutHeight,
     );
 
-    const imgData = ctx.getImageData(0, 0, tmp.width, tmp.height);
-    const px = imgData.data;
-    let tLeft = tmp.width,
-      tRight = 0,
-      tTop = tmp.height,
-      tBottom = 0;
-
-    for (let y = 0; y < tmp.height; y++) {
-      for (let x = 0; x < tmp.width; x++) {
-        if (px[(y * tmp.width + x) * 4 + 3] > 10) {
-          if (x < tLeft) tLeft = x;
-          if (x > tRight) tRight = x;
-          if (y < tTop) tTop = y;
-          if (y > tBottom) tBottom = y;
-        }
-      }
-    }
+    const { left: tLeft, right: tRight, top: tTop, bottom: tBottom } = findOpaqueBounds(ctx, tmp.width, tmp.height);
 
     // South point: average x of bottommost opaque row
+    const southData = ctx.getImageData(0, 0, tmp.width, tmp.height).data;
     let southSumX = 0;
     let southCount = 0;
     for (let x = 0; x < tmp.width; x++) {
-      if (px[(tBottom * tmp.width + x) * 4 + 3] > 10) {
+      if (southData[(tBottom * tmp.width + x) * 4 + 3] > 10) {
         southSumX += x;
         southCount++;
       }

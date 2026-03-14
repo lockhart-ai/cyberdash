@@ -394,8 +394,40 @@ export class GameScene extends Phaser.Scene {
 
     this.bakeGroundTiles();
     this.bakeBlockObjects();
-    this.placeParkingMeters();
-    this.placeLightPoles();
+    this.placeStreetProps({
+      texturePrefix: "parking-meter",
+      targetH: 40,
+      spacing: 8,
+      offset: 6,
+      corner: SIDEWALK_WIDTH,
+      skipNorthFarCorner: true,
+      southDir: "nw",
+      northDir: "se",
+      eastDir: "sw",
+      westDir: "ne",
+      nwPerimDir: "sw",
+      nePerimDir: "nw",
+      sePerimDir: "ne",
+      swPerimDir: "se",
+      label: "ParkingMeters",
+    });
+    this.placeStreetProps({
+      texturePrefix: "light-pole",
+      targetH: 160,
+      spacing: 8,
+      offset: 2,
+      corner: SIDEWALK_WIDTH,
+      skipNorthFarCorner: false,
+      southDir: "ne",
+      northDir: "sw",
+      eastDir: "nw",
+      westDir: "se",
+      nwPerimDir: "nw",
+      nePerimDir: "ne",
+      sePerimDir: "se",
+      swPerimDir: "sw",
+      label: "LightPoles",
+    });
     this.placeCars();
   }
 
@@ -1100,25 +1132,60 @@ export class GameScene extends Phaser.Scene {
    *   South edge (rowMod=55) → SE,  North edge (rowMod=8) → NW,
    *   East edge (colMod=35)  → NE,  West edge (colMod=8)  → SW.
    */
-  private placeParkingMeters() {
-    const TARGET_H = 40;
-    const SPACING = 8;
-    const OFFSET = 6;
-    const CORNER = SIDEWALK_WIDTH; // skip props within this many tiles of corners
+  /**
+   * Generic street-prop placer. Both parking meters and light poles share
+   * the same block-iteration / edge-loop structure; only the texture,
+   * sizes, and per-edge rotation mappings differ.
+   */
+  private placeStreetProps(config: {
+    texturePrefix: string;
+    targetH: number;
+    spacing: number;
+    offset: number;
+    corner: number;
+    /** Skip the far (SE) corner on the North edge? true = skip both corners, false = skip NW only */
+    skipNorthFarCorner: boolean;
+    // Direction mapping: which rotation to use for each block edge
+    southDir: string;
+    northDir: string;
+    eastDir: string;
+    westDir: string;
+    // Perimeter direction mapping
+    nwPerimDir: string;
+    nePerimDir: string;
+    sePerimDir: string;
+    swPerimDir: string;
+    label: string;
+  }) {
+    const {
+      texturePrefix, targetH, spacing, offset, corner,
+      skipNorthFarCorner,
+      southDir, northDir, eastDir, westDir,
+      nwPerimDir, nePerimDir, sePerimDir, swPerimDir,
+      label,
+    } = config;
 
     // Pre-compute scales for each rotation
     const rotations = ["se", "ne", "nw", "sw"] as const;
     const scales: Record<string, number> = {};
     for (const dir of rotations) {
-      const tex = this.textures.get(`parking-meter-${dir}`);
+      const tex = this.textures.get(`${texturePrefix}-${dir}`);
       if (!tex || tex.key === "__MISSING") return;
       const src = tex.getSourceImage() as HTMLCanvasElement;
-      scales[dir] = TARGET_H / src.height;
+      scales[dir] = targetH / src.height;
     }
 
     const numBlockCols = Math.floor(this.mapCols / COL_PERIOD);
     const numBlockRows = Math.floor(this.mapRows / ROW_PERIOD);
     let count = 0;
+
+    const place = (px: number, py: number, dir: string) => {
+      const img = this.add.image(px, py, `${texturePrefix}-${dir}`);
+      img.setScale(scales[dir]);
+      img.setOrigin(0.5, 1);
+      img.setDepth(py / (TILE_H / 2));
+      count++;
+    };
 
     for (let bRow = 0; bRow < numBlockRows; bRow++) {
       for (let bCol = 0; bCol < numBlockCols; bCol++) {
@@ -1128,253 +1195,82 @@ export class GameScene extends Phaser.Scene {
         const rowMax = bRow * ROW_PERIOD + ROW_PERIOD - 1;
 
         // South edge — skip corners
-        for (let col = colMin + OFFSET; col <= colMax; col += SPACING) {
-          if (col - colMin < CORNER || colMax - col < CORNER) continue;
+        for (let col = colMin + offset; col <= colMax; col += spacing) {
+          if (col - colMin < corner || colMax - col < corner) continue;
           const { x, y } = isoToScreen(col, rowMax);
-          const img = this.add.image(x, y, "parking-meter-nw");
-          img.setScale(scales.nw);
-          img.setOrigin(0.5, 1);
-          img.setDepth(y / (TILE_H / 2));
-          count++;
+          place(x, y, southDir);
         }
 
-        // North edge — skip corners
-        for (let col = colMin + OFFSET; col <= colMax; col += SPACING) {
-          if (col - colMin < CORNER || colMax - col < CORNER) continue;
+        // North edge — skip near (NW) corner always; skip far (SE) corner conditionally
+        for (let col = colMin + offset; col <= colMax; col += spacing) {
+          if (col - colMin < corner) continue;
+          if (skipNorthFarCorner && colMax - col < corner) continue;
           const { x, y } = isoToScreen(col, rowMin);
-          const img = this.add.image(x, y, "parking-meter-se");
-          img.setScale(scales.se);
-          img.setOrigin(0.5, 1);
-          img.setDepth(y / (TILE_H / 2));
-          count++;
+          place(x, y, northDir);
         }
 
         // East edge — skip corners
-        for (let row = rowMin + OFFSET; row <= rowMax; row += SPACING) {
-          if (row - rowMin < CORNER || rowMax - row < CORNER) continue;
+        for (let row = rowMin + offset; row <= rowMax; row += spacing) {
+          if (row - rowMin < corner || rowMax - row < corner) continue;
           const { x, y } = isoToScreen(colMax, row);
-          const img = this.add.image(x, y, "parking-meter-sw");
-          img.setScale(scales.sw);
-          img.setOrigin(0.5, 1);
-          img.setDepth(y / (TILE_H / 2));
-          count++;
+          place(x, y, eastDir);
         }
 
         // West edge — skip corners
-        for (let row = rowMin + OFFSET; row <= rowMax; row += SPACING) {
-          if (row - rowMin < CORNER || rowMax - row < CORNER) continue;
+        for (let row = rowMin + offset; row <= rowMax; row += spacing) {
+          if (row - rowMin < corner || rowMax - row < corner) continue;
           const { x, y } = isoToScreen(colMin, row);
-          const img = this.add.image(x, y, "parking-meter-ne");
-          img.setScale(scales.ne);
-          img.setOrigin(0.5, 1);
-          img.setDepth(y / (TILE_H / 2));
-          count++;
-        }
-
-        // --- Perimeter edges (opposite side of road from block edges) ---
-
-        // NW perimeter: road-facing edge at col before NW road, props face SW
-        if (bCol === 0) {
-          const perimEdgeCol = bCol * COL_PERIOD - 1;
-          const nwPropRowStart = rowMin + OFFSET;
-          const nwPropRowEnd = bRow === numBlockRows - 1 ? (bRow + 1) * ROW_PERIOD + STREET_WIDTH + SIDEWALK_WIDTH + 17 : rowMax;
-          for (let row = nwPropRowStart; row <= nwPropRowEnd; row += SPACING) {
-            const { x, y } = isoToScreen(perimEdgeCol, row);
-            const img = this.add.image(x, y, "parking-meter-sw");
-            img.setScale(scales.sw);
-            img.setOrigin(0.5, 1);
-            img.setDepth(y / (TILE_H / 2));
-            count++;
-          }
-        }
-
-        // NE perimeter: road-facing edge at row before NE road, props face NW
-        if (bRow === 0) {
-          const perimEdgeRow = bRow * ROW_PERIOD - 1;
-          const nePropColStart = colMin + OFFSET;
-          const nePropColEnd = bCol === numBlockCols - 1 ? (bCol + 1) * COL_PERIOD + STREET_WIDTH + SIDEWALK_WIDTH + 14 : colMax;
-          for (let col = nePropColStart; col <= nePropColEnd; col += SPACING) {
-            const { x, y } = isoToScreen(col, perimEdgeRow);
-            const img = this.add.image(x, y, "parking-meter-nw");
-            img.setScale(scales.nw);
-            img.setOrigin(0.5, 1);
-            img.setDepth(y / (TILE_H / 2));
-            count++;
-          }
-        }
-
-        // SE perimeter: road-facing edge at first col after SE road, props face NE
-        if (bCol === numBlockCols - 1) {
-          const perimEdgeCol = (bCol + 1) * COL_PERIOD + STREET_WIDTH;
-          const sePropRowStart = rowMin + OFFSET;
-          const sePropRowEnd = bRow === numBlockRows - 1 ? (bRow + 1) * ROW_PERIOD + STREET_WIDTH + SIDEWALK_WIDTH + 17 : rowMax;
-          for (let row = sePropRowStart; row <= sePropRowEnd; row += SPACING) {
-            const { x, y } = isoToScreen(perimEdgeCol, row);
-            const img = this.add.image(x, y, "parking-meter-ne");
-            img.setScale(scales.ne);
-            img.setOrigin(0.5, 1);
-            img.setDepth(y / (TILE_H / 2));
-            count++;
-          }
-        }
-
-        // SW perimeter: road-facing edge at first row after SW road, props face SE
-        if (bRow === numBlockRows - 1) {
-          const perimEdgeRow = (bRow + 1) * ROW_PERIOD + STREET_WIDTH;
-          const swPropColStart = colMin + OFFSET;
-          const swPropColEnd = bCol === numBlockCols - 1 ? (bCol + 1) * COL_PERIOD + STREET_WIDTH + SIDEWALK_WIDTH + 14 : colMax;
-          for (let col = swPropColStart; col <= swPropColEnd; col += SPACING) {
-            const { x, y } = isoToScreen(col, perimEdgeRow);
-            const img = this.add.image(x, y, "parking-meter-se");
-            img.setScale(scales.se);
-            img.setOrigin(0.5, 1);
-            img.setDepth(y / (TILE_H / 2));
-            count++;
-          }
-        }
-      }
-    }
-    console.log(`[ParkingMeters] Placed ${count} meters`);
-  }
-
-  /**
-   * Place light poles along all four sidewalk edges, offset by 2 tiles
-   * from parking meters so they alternate in between.
-   */
-  private placeLightPoles() {
-    const TARGET_H = 160;
-    const SPACING = 8;
-    const OFFSET = 2;
-    const CORNER = SIDEWALK_WIDTH;
-
-    const rotations = ["se", "ne", "nw", "sw"] as const;
-    const scales: Record<string, number> = {};
-    for (const dir of rotations) {
-      const tex = this.textures.get(`light-pole-${dir}`);
-      if (!tex || tex.key === "__MISSING") return;
-      const src = tex.getSourceImage() as HTMLCanvasElement;
-      scales[dir] = TARGET_H / src.height;
-    }
-
-    const numBlockCols = Math.floor(this.mapCols / COL_PERIOD);
-    const numBlockRows = Math.floor(this.mapRows / ROW_PERIOD);
-    let count = 0;
-
-    for (let bRow = 0; bRow < numBlockRows; bRow++) {
-      for (let bCol = 0; bCol < numBlockCols; bCol++) {
-        const colMin = bCol * COL_PERIOD + STREET_WIDTH;
-        const colMax = bCol * COL_PERIOD + COL_PERIOD - 1;
-        const rowMin = bRow * ROW_PERIOD + STREET_WIDTH;
-        const rowMax = bRow * ROW_PERIOD + ROW_PERIOD - 1;
-
-        // South edge — skip corners
-        for (let col = colMin + OFFSET; col <= colMax; col += SPACING) {
-          if (col - colMin < CORNER || colMax - col < CORNER) continue;
-          const { x, y } = isoToScreen(col, rowMax);
-          const img = this.add.image(x, y, "light-pole-ne");
-          img.setScale(scales.ne);
-          img.setOrigin(0.5, 1);
-          img.setDepth(y / (TILE_H / 2));
-          count++;
-        }
-
-        // North edge — skip NW corner only
-        for (let col = colMin + OFFSET; col <= colMax; col += SPACING) {
-          if (col - colMin < CORNER) continue;
-          const { x, y } = isoToScreen(col, rowMin);
-          const img = this.add.image(x, y, "light-pole-sw");
-          img.setScale(scales.sw);
-          img.setOrigin(0.5, 1);
-          img.setDepth(y / (TILE_H / 2));
-          count++;
-        }
-
-        // East edge — skip corners
-        for (let row = rowMin + OFFSET; row <= rowMax; row += SPACING) {
-          if (row - rowMin < CORNER || rowMax - row < CORNER) continue;
-          const { x, y } = isoToScreen(colMax, row);
-          const img = this.add.image(x, y, "light-pole-nw");
-          img.setScale(scales.nw);
-          img.setOrigin(0.5, 1);
-          img.setDepth(y / (TILE_H / 2));
-          count++;
-        }
-
-        // West / NW edge — skip corners
-        for (let row = rowMin + OFFSET; row <= rowMax; row += SPACING) {
-          if (row - rowMin < CORNER || rowMax - row < CORNER) continue;
-          const { x, y } = isoToScreen(colMin, row);
-          const img = this.add.image(x, y, "light-pole-se");
-          img.setScale(scales.se);
-          img.setOrigin(0.5, 1);
-          img.setDepth(y / (TILE_H / 2));
-          count++;
+          place(x, y, westDir);
         }
 
         // --- Perimeter edges ---
 
-        // NW perimeter: props face NW
+        // NW perimeter
         if (bCol === 0) {
           const perimEdgeCol = bCol * COL_PERIOD - 1;
-          const nwPropRowStart = rowMin + OFFSET;
+          const nwPropRowStart = rowMin + offset;
           const nwPropRowEnd = bRow === numBlockRows - 1 ? (bRow + 1) * ROW_PERIOD + STREET_WIDTH + SIDEWALK_WIDTH + 17 : rowMax;
-          for (let row = nwPropRowStart; row <= nwPropRowEnd; row += SPACING) {
+          for (let row = nwPropRowStart; row <= nwPropRowEnd; row += spacing) {
             const { x, y } = isoToScreen(perimEdgeCol, row);
-            const img = this.add.image(x, y, "light-pole-nw");
-            img.setScale(scales.nw);
-            img.setOrigin(0.5, 1);
-            img.setDepth(y / (TILE_H / 2));
-            count++;
+            place(x, y, nwPerimDir);
           }
         }
 
-        // NE perimeter: props face NE
+        // NE perimeter
         if (bRow === 0) {
           const perimEdgeRow = bRow * ROW_PERIOD - 1;
-          const nePropColStart = colMin + OFFSET;
+          const nePropColStart = colMin + offset;
           const nePropColEnd = bCol === numBlockCols - 1 ? (bCol + 1) * COL_PERIOD + STREET_WIDTH + SIDEWALK_WIDTH + 14 : colMax;
-          for (let col = nePropColStart; col <= nePropColEnd; col += SPACING) {
+          for (let col = nePropColStart; col <= nePropColEnd; col += spacing) {
             const { x, y } = isoToScreen(col, perimEdgeRow);
-            const img = this.add.image(x, y, "light-pole-ne");
-            img.setScale(scales.ne);
-            img.setOrigin(0.5, 1);
-            img.setDepth(y / (TILE_H / 2));
-            count++;
+            place(x, y, nePerimDir);
           }
         }
 
-        // SE perimeter: props face SE
+        // SE perimeter
         if (bCol === numBlockCols - 1) {
           const perimEdgeCol = (bCol + 1) * COL_PERIOD + STREET_WIDTH;
-          const sePropRowStart = rowMin + OFFSET;
+          const sePropRowStart = rowMin + offset;
           const sePropRowEnd = bRow === numBlockRows - 1 ? (bRow + 1) * ROW_PERIOD + STREET_WIDTH + SIDEWALK_WIDTH + 17 : rowMax;
-          for (let row = sePropRowStart; row <= sePropRowEnd; row += SPACING) {
+          for (let row = sePropRowStart; row <= sePropRowEnd; row += spacing) {
             const { x, y } = isoToScreen(perimEdgeCol, row);
-            const img = this.add.image(x, y, "light-pole-se");
-            img.setScale(scales.se);
-            img.setOrigin(0.5, 1);
-            img.setDepth(y / (TILE_H / 2));
-            count++;
+            place(x, y, sePerimDir);
           }
         }
 
-        // SW perimeter: props face SW
+        // SW perimeter
         if (bRow === numBlockRows - 1) {
           const perimEdgeRow = (bRow + 1) * ROW_PERIOD + STREET_WIDTH;
-          const swPropColStart = colMin + OFFSET;
+          const swPropColStart = colMin + offset;
           const swPropColEnd = bCol === numBlockCols - 1 ? (bCol + 1) * COL_PERIOD + STREET_WIDTH + SIDEWALK_WIDTH + 14 : colMax;
-          for (let col = swPropColStart; col <= swPropColEnd; col += SPACING) {
+          for (let col = swPropColStart; col <= swPropColEnd; col += spacing) {
             const { x, y } = isoToScreen(col, perimEdgeRow);
-            const img = this.add.image(x, y, "light-pole-sw");
-            img.setScale(scales.sw);
-            img.setOrigin(0.5, 1);
-            img.setDepth(y / (TILE_H / 2));
-            count++;
+            place(x, y, swPerimDir);
           }
         }
       }
     }
-    console.log(`[LightPoles] Placed ${count} poles`);
+    console.log(`[${label}] Placed ${count}`);
   }
 
   private readonly NUM_CAR_MODELS = 47;

@@ -5,6 +5,7 @@ import {
   trimCompositeBuildings,
   trimSkyscrapers,
 } from "../rendering/CompositeBuilding";
+import { findOpaqueBounds } from "../utils/trim";
 
 export const DIRECTIONS = [
   "south",
@@ -654,22 +655,7 @@ export class BootScene extends Phaser.Scene {
         frame.cutHeight,
       );
 
-      const imgData = ctx.getImageData(0, 0, tmp.width, tmp.height);
-      const px = imgData.data;
-      let tLeft = tmp.width,
-        tRight = 0,
-        tTop = tmp.height,
-        tBottom = 0;
-      for (let y = 0; y < tmp.height; y++) {
-        for (let x = 0; x < tmp.width; x++) {
-          if (px[(y * tmp.width + x) * 4 + 3] > 10) {
-            if (x < tLeft) tLeft = x;
-            if (x > tRight) tRight = x;
-            if (y < tTop) tTop = y;
-            if (y > tBottom) tBottom = y;
-          }
-        }
-      }
+      const { left: tLeft, right: tRight, top: tTop, bottom: tBottom } = findOpaqueBounds(ctx, tmp.width, tmp.height);
       if (tRight < tLeft || tBottom < tTop) continue;
 
       const tw = tRight - tLeft + 1;
@@ -716,22 +702,7 @@ export class BootScene extends Phaser.Scene {
           frame.cutHeight,
         );
 
-        const imgData = ctx.getImageData(0, 0, tmp.width, tmp.height);
-        const px = imgData.data;
-        let tLeft = tmp.width,
-          tRight = 0,
-          tTop = tmp.height,
-          tBottom = 0;
-        for (let y = 0; y < tmp.height; y++) {
-          for (let x = 0; x < tmp.width; x++) {
-            if (px[(y * tmp.width + x) * 4 + 3] > 10) {
-              if (x < tLeft) tLeft = x;
-              if (x > tRight) tRight = x;
-              if (y < tTop) tTop = y;
-              if (y > tBottom) tBottom = y;
-            }
-          }
-        }
+        const { left: tLeft, right: tRight, top: tTop, bottom: tBottom } = findOpaqueBounds(ctx, tmp.width, tmp.height);
         if (tRight < tLeft || tBottom < tTop) continue;
 
         const tw = tRight - tLeft + 1;
@@ -774,22 +745,7 @@ export class BootScene extends Phaser.Scene {
         frame.cutHeight,
       );
 
-      const imgData = ctx.getImageData(0, 0, tmp.width, tmp.height);
-      const px = imgData.data;
-      let tLeft = tmp.width,
-        tRight = 0,
-        tTop = tmp.height,
-        tBottom = 0;
-      for (let y = 0; y < tmp.height; y++) {
-        for (let x = 0; x < tmp.width; x++) {
-          if (px[(y * tmp.width + x) * 4 + 3] > 10) {
-            if (x < tLeft) tLeft = x;
-            if (x > tRight) tRight = x;
-            if (y < tTop) tTop = y;
-            if (y > tBottom) tBottom = y;
-          }
-        }
-      }
+      const { left: tLeft, right: tRight, top: tTop, bottom: tBottom } = findOpaqueBounds(ctx, tmp.width, tmp.height);
       if (tRight < tLeft || tBottom < tTop) continue;
 
       const tw = tRight - tLeft + 1;
