@@ -48,7 +48,12 @@ function trimFrame(
     frame.cutHeight,
   );
 
-  const { left: tLeft, right: tRight, top: tTop, bottom: tBottom } = findOpaqueBounds(ctx, tmp.width, tmp.height);
+  const {
+    left: tLeft,
+    right: tRight,
+    top: tTop,
+    bottom: tBottom,
+  } = findOpaqueBounds(ctx, tmp.width, tmp.height);
 
   if (tRight < tLeft || tBottom < tTop) return false;
 

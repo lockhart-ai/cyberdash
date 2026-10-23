@@ -200,10 +200,12 @@ export function renderSidewalkTile(
   const colors = TILE_COLORS[TileType.SIDEWALK];
 
   const leftNeighbor = cityMap?.[row + 1]?.[col];
-  const drawLeft = leftNeighbor === undefined || leftNeighbor === TileType.STREET;
+  const drawLeft =
+    leftNeighbor === undefined || leftNeighbor === TileType.STREET;
 
   const rightNeighbor = cityMap?.[row]?.[col + 1];
-  const drawRight = rightNeighbor === undefined || rightNeighbor === TileType.STREET;
+  const drawRight =
+    rightNeighbor === undefined || rightNeighbor === TileType.STREET;
 
   if (drawLeft) {
     sidewalkGfx.fillStyle(colors.left, 1);

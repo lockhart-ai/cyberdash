@@ -1,4 +1,6 @@
 import type Phaser from "phaser";
+import { mulberry32 } from "../utils/rng";
+import { findOpaqueBounds } from "../utils/trim";
 import { CYBERDARK_TINT } from "./BuildingTypes";
 import {
   addDebugGraphics,
@@ -6,8 +8,6 @@ import {
   isDebugVisible,
   isLabelsVisible,
 } from "./DebugOverlay";
-import { mulberry32 } from "../utils/rng";
-import { findOpaqueBounds } from "../utils/trim";
 
 const NUM_BUILDINGS = 16;
 const DIR_SUFFIXES = ["se", "ne", "nw", "sw"];
@@ -84,7 +84,12 @@ export function trimCompositeBuildings(scene: Phaser.Scene): void {
       );
 
       // Scan for tight opaque bounds
-      const { left: tLeft, right: tRight, top: tTop, bottom: tBottom } = findOpaqueBounds(ctx, tmp.width, tmp.height);
+      const {
+        left: tLeft,
+        right: tRight,
+        top: tTop,
+        bottom: tBottom,
+      } = findOpaqueBounds(ctx, tmp.width, tmp.height);
 
       // Find the south point: the bottommost opaque pixel.
       // Scan the bottom row of content for the average x of opaque pixels
@@ -389,7 +394,12 @@ export function trimSkyscrapers(scene: Phaser.Scene): void {
         frame.cutHeight,
       );
 
-      const { left: tLeft, right: tRight, top: tTop, bottom: tBottom } = findOpaqueBounds(ctx, tmp.width, tmp.height);
+      const {
+        left: tLeft,
+        right: tRight,
+        top: tTop,
+        bottom: tBottom,
+      } = findOpaqueBounds(ctx, tmp.width, tmp.height);
 
       const southData = ctx.getImageData(0, 0, tmp.width, tmp.height).data;
       let southSumX = 0;
