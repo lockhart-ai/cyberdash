@@ -95,9 +95,8 @@ CyberDash has no separate model IDs to alias: the built-in Agent tool takes `mod
 - A question or an update for the owner goes in the kitten's report back to the supervisor; the supervisor relays
   it or decides, never the kitten.
 
-A kitten dispatched with the Agent tool or `mcp__glade-agents__dispatch` simply has no access to the task-level
-Glade tools (`ask`, `set_title`, `set_objective`, `set_status`, `add_artifact`) — those exist only in the
-supervisor's own tool list, so there's nothing a kitten could call even by mistake.
+A kitten may still see the task-level Glade tools (`ask`, `set_title`, `set_objective`, `set_status`,
+`create_todo`, `update_todo`, `add_artifact`) in its tool list; it must not call them. Every brief says so.
 
 ## Kittens stay inside their worktree and /tmp
 
