@@ -1,4 +1,6 @@
 import type Phaser from "phaser";
+import { mulberry32 } from "../utils/rng";
+import { findOpaqueBounds } from "../utils/trim";
 import { CYBERDARK_TINT } from "./BuildingTypes";
 import {
   addDebugGraphics,
@@ -6,8 +8,6 @@ import {
   isDebugVisible,
   isLabelsVisible,
 } from "./DebugOverlay";
-import { mulberry32 } from "../utils/rng";
-import { findOpaqueBounds } from "../utils/trim";
 
 /**
  * Traditional Asian Heritage stackable buildings.
@@ -95,7 +95,12 @@ export function trimAsianModules(scene: Phaser.Scene): void {
       frame.cutHeight,
     );
 
-    const { left: tLeft, right: tRight, top: tTop, bottom: tBottom } = findOpaqueBounds(ctx, tmp.width, tmp.height);
+    const {
+      left: tLeft,
+      right: tRight,
+      top: tTop,
+      bottom: tBottom,
+    } = findOpaqueBounds(ctx, tmp.width, tmp.height);
 
     // South point: average x of bottommost opaque row
     const southData = ctx.getImageData(0, 0, tmp.width, tmp.height).data;
@@ -242,7 +247,12 @@ export function placeAsianBuilding(
     const gfx = scene.add.graphics();
     gfx.setDepth(depth + 0.5);
     gfx.lineStyle(2, 0xffff00, 0.8);
-    gfx.strokeRect(bboxLeft, bboxTop, bboxRight - bboxLeft, bboxBottom - bboxTop);
+    gfx.strokeRect(
+      bboxLeft,
+      bboxTop,
+      bboxRight - bboxLeft,
+      bboxBottom - bboxTop,
+    );
     gfx.fillStyle(0xffffff, 1);
     gfx.fillCircle(x, y, 4);
     gfx.fillStyle(0x00ff00, 1);
