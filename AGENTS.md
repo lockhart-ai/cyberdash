@@ -57,3 +57,23 @@ CyberDash is a cyberpunk courier action game. The player is a cybernetically enh
 - Keep game config in `src/config/game.ts`
 - One class per file, filename matches class name
 - Dev server runs on port 3000
+- **Fail loudly; no silent fallbacks.** A fallback or degraded mode (a missing asset, a binary not found, a
+  default used because something else wasn't available) warns clearly — in a log at minimum, in the game's own
+  UI where the player would notice — saying what it fell back to and why. Ask of every fallback: how would
+  anyone know this path was taken?
+
+## How we work
+
+See `docs/glade.md` for how this task runs in Glade, `docs/kittens.md` for how the supervisor and kittens split
+work, and `docs/kitten-sop.md` for the issue-to-PR process.
+
+- **Game dev** (gameplay, rendering, assets, levels): no issue, no PR, no branch. Commit straight to `main` with
+  a sentence-case imperative summary (no issue number), and push. Work in the main checkout, not a worktree, one
+  change at a time, so it hot-reloads in the dev server Jared and the supervisor are both watching.
+- **Tooling/process** (CI, harness, scripts, docs, dependencies): the full flow — issue, `<issue>-<slug>` branch
+  in a worktree, `<issue>: Summary` commits, a PR, CI green, then the supervisor reviews and merges.
+- There's no test suite and no releases here — iterating straight in the repo replaces both. Checks are
+  `npx tsc --noEmit`, `npx biome check src/` (`npm run lint:fix` to auto-fix) and `npm run build`; CI runs all
+  three on every PR and push to `main`.
+- To see the game: `npm run dev` (port 3000), or the supervisor's headless `npm run look` for a quick look
+  without a browser — its FPS numbers are meaningless (software GL), so judge by what's on screen, not by that.
