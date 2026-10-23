@@ -27,8 +27,9 @@ CyberDash is a cyberpunk courier action game. The player is a cybernetically enh
 ## Asset Pipeline
 
 ### Purchased Asset Packs (primary source)
-- **27 isometric packs**, kept outside the repo (not in `/tmp`: macOS clears it)
-- Symlinked into project at `public/asset_packs/` (gitignored); the game never loads from it at runtime
+- **27 isometric packs** (~5,000 PNGs, 157 MB) in `asset_packs/` at the repo root, extracted unchanged from the purchase zips; gitignored, never committed
+- `public/asset_packs` is a relative symlink to `../asset_packs` (also gitignored) so the dev server can show them; the game never loads from it at runtime
+- To restore on a new machine: unzip each purchase zip into `asset_packs/<Pack Name>/` (e.g. `asset_packs/Isometric Cyberpunk City/`), then `ln -s ../asset_packs public/asset_packs`
 - Key packs: Cyberpunk City, Cyberpunk Buildings, Cyberpunk Streets, Cyberpunk Interior, Roads and Cars
 
 ### STRICT Asset Rules
