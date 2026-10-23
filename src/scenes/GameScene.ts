@@ -1,4 +1,5 @@
 import Phaser from "phaser";
+import { GameDebug } from "../debug/GameDebug";
 import {
   BLOCK_INTERIOR,
   COL_PERIOD,
@@ -27,7 +28,7 @@ import {
   renderStreetTile,
 } from "../rendering/StreetRenderer";
 
-type Direction =
+export type Direction =
   | "south"
   | "south-west"
   | "west"
@@ -38,15 +39,21 @@ type Direction =
   | "south-east";
 
 export class GameScene extends Phaser.Scene {
-  private player!: Phaser.GameObjects.Sprite;
+  /** Public so GameDebug (dev-only) can drive and read it; see src/debug/GameDebug.ts. */
+  player!: Phaser.GameObjects.Sprite;
   private cursors!: Phaser.Types.Input.Keyboard.CursorKeys;
   private shiftKey!: Phaser.Input.Keyboard.Key;
-  private facing: Direction = "south";
+  private _facing: Direction = "south";
   private cityMap!: number[][];
   private buildings: Building[] = [];
   private fpsEl!: HTMLElement | null;
   private coordEl!: HTMLElement | null;
   private gridEl!: HTMLElement | null;
+
+  /** Street-level prop images (parking meters, light poles, parked cars). Read by GameDebug for visibility counts. */
+  readonly propImages: Phaser.GameObjects.Image[] = [];
+  /** Per-block baked building RenderTextures, from bakeBlockObjects(). Read by GameDebug for visibility counts. */
+  readonly blockRTs: Phaser.GameObjects.RenderTexture[] = [];
 
   /** Per-block collection of building/sign objects to bake into RenderTextures */
   private blockBuildingObjects = new Map<
@@ -77,6 +84,16 @@ export class GameScene extends Phaser.Scene {
 
   constructor() {
     super({ key: "GameScene" });
+  }
+
+  /** Current facing direction. Public (read-only) so GameDebug can report it in getState(). */
+  get facing(): Direction {
+    return this._facing;
+  }
+
+  /** Set facing directly (used by GameDebug.face()); normal play only sets it via movement input. */
+  setFacing(dir: Direction) {
+    this._facing = dir;
   }
 
   create() {
@@ -134,6 +151,12 @@ export class GameScene extends Phaser.Scene {
     console.log(
       `[perf] Game objects: ${totalObjects}, Physics bodies: ${totalBodies}, Buildings: ${this.buildings.length}`,
     );
+
+    // Dev-only hook for the `look` harness (scripts/look.mjs) to see and drive the running game.
+    // Stripped from production builds: import.meta.env.DEV is replaced with `false` and dead-code-eliminated.
+    if (import.meta.env.DEV) {
+      window.__cyberdash = new GameDebug(this);
+    }
   }
 
   update() {
@@ -166,7 +189,7 @@ export class GameScene extends Phaser.Scene {
     else if (this.cursors.down.isDown) inputY = 1;
 
     if (inputX !== 0 || inputY !== 0) {
-      this.facing = this.getDirection(inputX, inputY);
+      this._facing = this.getDirection(inputX, inputY);
 
       const moveX = inputX;
       let moveY = inputY;
@@ -178,7 +201,7 @@ export class GameScene extends Phaser.Scene {
       body.setAcceleration((moveX / len) * accel, (moveY / len) * accel);
 
       const prefix = running ? "run" : "walk";
-      const animKey = `${prefix}-${this.facing}`;
+      const animKey = `${prefix}-${this._facing}`;
       if (
         this.player.anims.currentAnim?.key !== animKey ||
         !this.player.anims.isPlaying
@@ -190,7 +213,7 @@ export class GameScene extends Phaser.Scene {
 
       if (body.speed < 20) {
         this.player.stop();
-        this.player.setTexture(`player-${this.facing}`);
+        this.player.setTexture(`player-${this._facing}`);
       }
     }
 
@@ -209,7 +232,7 @@ export class GameScene extends Phaser.Scene {
     if (dx === -1 && dy === 1) return "south-west";
     if (dx === -1 && dy === 0) return "west";
     if (dx === -1 && dy === -1) return "north-west";
-    return this.facing;
+    return this._facing;
   }
 
   private generateCityMap(): number[][] {
@@ -1205,6 +1228,7 @@ export class GameScene extends Phaser.Scene {
           rt.render();
           rt.setDepth(maxDepth);
           rtCount++;
+          this.blockRTs.push(rt);
         }
       }
 
@@ -1291,6 +1315,7 @@ export class GameScene extends Phaser.Scene {
       img.setOrigin(0.5, 1);
       img.setDepth(py / (TILE_H / 2));
       count++;
+      this.propImages.push(img);
     };
 
     for (let bRow = 0; bRow < numBlockRows; bRow++) {
@@ -1434,6 +1459,7 @@ export class GameScene extends Phaser.Scene {
               img.setOrigin(0.5, 1);
               img.setDepth(y / (TILE_H / 2));
               count++;
+              this.propImages.push(img);
             }
             row += 6;
           } else {
@@ -1470,6 +1496,7 @@ export class GameScene extends Phaser.Scene {
               img.setOrigin(0.5, 1);
               img.setDepth(y / (TILE_H / 2));
               count++;
+              this.propImages.push(img);
             }
             col += 6;
           } else {

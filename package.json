@@ -8,13 +8,16 @@
     "build": "tsc && vite build",
     "preview": "vite preview",
     "lint": "biome check src/",
-    "lint:fix": "biome check --write src/"
+    "lint:fix": "biome check --write src/",
+    "look": "node scripts/look.mjs",
+    "look:setup": "playwright install chromium-headless-shell"
   },
   "dependencies": {
     "phaser": "^4.0.0-rc.6"
   },
   "devDependencies": {
     "@biomejs/biome": "^2.4.6",
+    "playwright": "^1.64.1",
     "typescript": "^5.9.3",
     "vite": "^7.3.1"
   }
