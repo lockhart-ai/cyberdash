@@ -655,7 +655,12 @@ export class BootScene extends Phaser.Scene {
         frame.cutHeight,
       );
 
-      const { left: tLeft, right: tRight, top: tTop, bottom: tBottom } = findOpaqueBounds(ctx, tmp.width, tmp.height);
+      const {
+        left: tLeft,
+        right: tRight,
+        top: tTop,
+        bottom: tBottom,
+      } = findOpaqueBounds(ctx, tmp.width, tmp.height);
       if (tRight < tLeft || tBottom < tTop) continue;
 
       const tw = tRight - tLeft + 1;
@@ -702,7 +707,12 @@ export class BootScene extends Phaser.Scene {
           frame.cutHeight,
         );
 
-        const { left: tLeft, right: tRight, top: tTop, bottom: tBottom } = findOpaqueBounds(ctx, tmp.width, tmp.height);
+        const {
+          left: tLeft,
+          right: tRight,
+          top: tTop,
+          bottom: tBottom,
+        } = findOpaqueBounds(ctx, tmp.width, tmp.height);
         if (tRight < tLeft || tBottom < tTop) continue;
 
         const tw = tRight - tLeft + 1;
@@ -745,7 +755,12 @@ export class BootScene extends Phaser.Scene {
         frame.cutHeight,
       );
 
-      const { left: tLeft, right: tRight, top: tTop, bottom: tBottom } = findOpaqueBounds(ctx, tmp.width, tmp.height);
+      const {
+        left: tLeft,
+        right: tRight,
+        top: tTop,
+        bottom: tBottom,
+      } = findOpaqueBounds(ctx, tmp.width, tmp.height);
       if (tRight < tLeft || tBottom < tTop) continue;
 
       const tw = tRight - tLeft + 1;

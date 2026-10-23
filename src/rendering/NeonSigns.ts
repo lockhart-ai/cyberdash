@@ -166,7 +166,7 @@ export function placeNeonSigns(
         skipFlushSlots.add(rightmostFlush);
       }
 
-      const pcx = px0 + protrudeDir * pw / 2;
+      const pcx = px0 + (protrudeDir * pw) / 2;
       const pcy = py0 + pw * 0.25 - ph / 2;
 
       if (protrudingKeys.length > 0) {

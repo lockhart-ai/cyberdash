@@ -4,7 +4,8 @@
 # OS files
 .DS_Store
 
-# Asset packs (symlinked, not in repo)
+# Asset packs: purchased, extracted locally into asset_packs/, never committed
+/asset_packs/
 public/asset_packs
 
 # Logs
