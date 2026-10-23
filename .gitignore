@@ -1,5 +1,6 @@
-# Claude Code
-.claude/
+# Claude Code (but keep skills, which are checked in)
+.claude/*
+!.claude/skills/
 
 # OS files
 .DS_Store
@@ -147,3 +148,6 @@ dist
 # Vite logs files
 vite.config.js.timestamp-*
 vite.config.ts.timestamp-*
+
+# look harness output (screenshots, video, summary.json)
+look-output/
