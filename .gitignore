@@ -151,3 +151,6 @@ vite.config.ts.timestamp-*
 
 # look harness output (screenshots, video, summary.json)
 look-output/
+
+# pixel sprite tool review output (viewing copies, outside the repo's asset dirs)
+pixel-output/
