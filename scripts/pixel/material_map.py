@@ -103,16 +103,16 @@ MATERIAL_TABLE: dict[str, dict[str, str]] = {
     "torso": {
         "ink": "ink",
         "skin": "skin",
-        "cyan": "other",
-        "grey": "jacket",
-        "light": "shirt",
+        "cyan": "jacket",  # no cyan belongs here; a rare mis-hued pixel still
+        "grey": "jacket",  # needs a material so the recipe recolours it instead
+        "light": "shirt",  # of leaving the courier's original hue in place
         "dark_fill": "jacket",
         "other": "jacket",
     },
     "leg": {
         "ink": "ink",
         "skin": "skin",
-        "cyan": "other",
+        "cyan": "pants",
         "grey": "pants",
         "light": "pants",
         "dark_fill": "pants",
@@ -121,7 +121,7 @@ MATERIAL_TABLE: dict[str, dict[str, str]] = {
     "foot": {
         "ink": "ink",
         "skin": "skin",
-        "cyan": "other",
+        "cyan": "shoes",
         "grey": "shoes",
         "light": "shoes",
         "dark_fill": "shoes",
@@ -172,3 +172,99 @@ def false_color_image(img: Image.Image) -> Image.Image:
             if label is not None:
                 out.putpixel((x, y), FALSE_COLORS[label])
     return out
+
+
+# ---- recipes: palette-swap a material by luminance rank -------------------
+
+
+def _luminance(rgb: RGBA) -> float:
+    return 0.299 * rgb[0] + 0.587 * rgb[1] + 0.114 * rgb[2]
+
+
+def make_ramp_recolor(old_ramp: list[RGBA], new_ramp: list[RGBA]):
+    """Build a recolour function for one material: old_ramp[i] -> new_ramp[i],
+    both lists ranked darkest-to-lightest. A colour that doesn't exactly match
+    one of old_ramp's entries (a rare accent tone the classifier still routed
+    to this material) is matched to whichever ramp entry is nearest by
+    luminance, so nothing is left in the courier's original hue - that's the
+    "colour bleeding" failure mode to avoid.
+    """
+    old_sorted = sorted(old_ramp, key=_luminance)
+    new_sorted = sorted(new_ramp, key=_luminance)
+    exact = {old: new for old, new in zip(old_sorted, new_sorted)}
+
+    def recolor(rgba: RGBA) -> RGBA:
+        if rgba in exact:
+            new = exact[rgba]
+        else:
+            lum = _luminance(rgba)
+            idx = min(range(len(old_sorted)), key=lambda i: abs(_luminance(old_sorted[i]) - lum))
+            new = new_sorted[idx]
+        return (new[0], new[1], new[2], rgba[3])
+
+    return recolor
+
+
+def apply_recipe(img: Image.Image, recipe: dict[str, object]) -> Image.Image:
+    """Recolour ``img`` material-by-material. ``recipe[material]`` is either
+    ``None`` (pass through unchanged - used for ink and skin) or a function
+    built by make_ramp_recolor.
+    """
+    labels = classify_image(img)
+    out = img.copy()
+    src = img.load()
+    dst = out.load()
+    w, h = img.size
+    for y in range(h):
+        row = labels[y]
+        for x in range(w):
+            label = row[x]
+            if label is None:
+                continue
+            fn = recipe.get(label)
+            if fn is not None:
+                dst[x, y] = fn(src[x, y])
+    return out
+
+
+# ---- overlay placement: where does the head / face sit in this frame? -----
+
+
+def region_bbox(img: Image.Image, predicate) -> tuple[int, int, int, int] | None:
+    """Tight bbox of pixels whose (x, y, label) satisfies ``predicate``, or
+    None if no pixel matches. Used to find e.g. the head silhouette or the
+    glasses, per frame, so overlays can be positioned instead of hardcoded -
+    which is what makes them follow the walk-cycle bob.
+    """
+    labels = classify_image(img)
+    w, h = img.size
+    minx, miny, maxx, maxy = w, h, -1, -1
+    for y in range(h):
+        row = labels[y]
+        for x in range(w):
+            label = row[x]
+            if label is not None and predicate(x, y, label):
+                minx, miny = min(minx, x), min(miny, y)
+                maxx, maxy = max(maxx, x), max(maxy, y)
+    if maxx < 0:
+        return None
+    return minx, maxx, miny, maxy
+
+
+def head_bbox(img: Image.Image) -> tuple[int, int, int, int] | None:
+    """Bbox of the whole head silhouette (hair + skin + glasses in the head band)."""
+    minx, maxx, miny, maxy = figure_bbox(img)
+
+    def in_head(x: int, y: int, label: str) -> bool:
+        return band_of(y, miny, maxy) == "head" and label in (
+            "hair",
+            "skin",
+            "glasses_lens",
+            "glasses_frame",
+        )
+
+    return region_bbox(img, in_head)
+
+
+def glasses_bbox(img: Image.Image) -> tuple[int, int, int, int] | None:
+    return region_bbox(img, lambda x, y, label: label in ("glasses_lens", "glasses_frame"))
