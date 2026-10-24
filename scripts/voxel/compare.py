@@ -112,7 +112,7 @@ if __name__ == "__main__":
     # Reference packs live only in the main checkout, not this worktree (per
     # the task brief) — read-only, absolute path, never written to.
     asset_packs = "/Users/decker/Documents/cyberdash/asset_packs"
-    out_dir = "/Users/decker/Documents/cyberdash/voxel-output/round1"
+    out_dir = "/Users/decker/Documents/cyberdash/voxel-output/round2"
 
     comparisons = [
         (

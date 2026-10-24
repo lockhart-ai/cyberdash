@@ -2,9 +2,13 @@
 
 Assumptions (stated up front):
 - True 2:1 isometric projection, built from a single tunable constant
-  UNIT_PX (pixel size of one voxel unit's horizontal step). The other two
-  projection steps are fixed ratios of it (UY_RATIO, Z_RATIO = 0.5), which is
-  what makes the projection "true" 2:1 rather than an arbitrary skew.
+  UNIT_PX (pixel size of one voxel unit's horizontal step). "2:1" describes
+  the ground diamond only: one grid unit of x or y advances the screen by
+  (UNIT_PX, UNIT_PX * UY_RATIO) with UY_RATIO = 0.5. The vertical (z) axis is
+  a separate, independently-calibrated constant Z_RATIO — see the round-2
+  report for how it was measured against City-103 (its near-cube head gives
+  a direct wall-height : top-diamond-height ratio in pixels, which equals
+  Z_RATIO exactly when footprint W=D=h).
 - Camera convention: +x (east) and +y (south) side faces are visible, plus
   the top (+z) face. We call the +x face "right" and the +y face "left" —
   this is a screen-space label (which side of the sprite it reads as), not a
@@ -40,25 +44,57 @@ from box import Model, model_extent
 # Tunable constants (the whole "look" lives here)
 # ---------------------------------------------------------------------------
 
-# Pixel size of one voxel unit's horizontal step. Calibrated against a rough
-# copy of City-103 (the mailbox) — see models.py's calibration_mailbox() and
-# the round-1 report for what this did and didn't match.
-UNIT_PX = 16
+# Pixel size of one voxel unit's horizontal step. Round 2: dropped from 16 to
+# 4 so models can be built from many small voxels (15-30 units across) and
+# carry 2-4px details (trims, slots, frames) like the purchased packs do,
+# instead of a handful of huge slabs.
+UNIT_PX = 4
 
-# True 2:1 iso: one grid unit of y/depth or z/height advances the screen by
-# half as many pixels as one grid unit of x advances it horizontally.
+# Ground-diamond ratio: fixed by "true 2:1" (unchanged from round 1).
 UY_RATIO = 0.5
-Z_RATIO = 0.5
 
-# Flat per-face shading multipliers. Top is unshaded (brightest). Right is a
-# uniform darken. Left is darkest AND shifted cooler: blue darkens less than
-# red/green, per the measured spec (e.g. 0.44x blue vs 0.31x red/green).
+# Vertical (z) pixels per unit, as a multiple of UNIT_PX. Round-1 used 0.5
+# (treating z like another ground axis), which halved every height — the
+# pedestrian read as lying flat, the mailbox as an anvil.
+#
+# Calibrated by rendering an actual test cube (equal W=D=h) at several
+# candidate Z_RATIO values and checking which one LOOKS like a cube: 0.5
+# reads as a flattened disc, 2.4 (naively back-solved from City-103's head
+# assuming its height equals its footprint width) reads as a slender tower,
+# and 1.0 reads as a proper cube. 1.0 is also the value a direct "vertical
+# unit at the diamond's half-height x2" read of the brief implies. Used 1.0.
+#
+# This means City-103's head, measured at exact pixel precision (apex to
+# full-width row y4->y32 = diamond height 28px; full-width to narrowing row
+# y32->y100 = wall height 68px; ratio 68/28 ~= 2.43), is NOT a literal cube
+# in grid units — at Z_RATIO=1.0 that pixel ratio implies its real height is
+# ~2.4x its footprint width (a tall box, not equal W=D=h). The calibration
+# mailbox model (models.py) uses that derived height directly, rather than
+# assuming h=W, to match City-103's silhouette.
+Z_RATIO = 1.0
+
+# Flat per-face shading multipliers. Top is unshaded (brightest). Round 2:
+# lifted right and left — round 1's left (0.31/0.31/0.44) measured true to
+# City-103's own pixels, but combined with our dark base colors it crushed
+# to near-black and merged with the outline. Mid-tone base colors (see
+# models.py) plus a lighter left multiplier keep the left face readable.
+# Cool shift kept: blue darkens less than red/green.
 TOP_MULT: Tuple[float, float, float] = (1.0, 1.0, 1.0)
-RIGHT_MULT: Tuple[float, float, float] = (0.73, 0.73, 0.73)
-LEFT_MULT: Tuple[float, float, float] = (0.31, 0.31, 0.44)
+RIGHT_MULT: Tuple[float, float, float] = (0.78, 0.78, 0.78)
+LEFT_MULT: Tuple[float, float, float] = (0.52, 0.52, 0.62)
 
 OUTLINE_RGBA = (0, 0, 0, 255)
-HIGHLIGHT_MULT = 1.45
+
+# Per-box edge rim: a 1px lighter line along a face's own boundary edges
+# (top face: all 4 edges; side faces: just the top edge, i.e. the crease
+# below the top face), giving the bevelled look the reference packs have
+# instead of flat slabs. Separate from the black silhouette outline, which
+# only wraps the whole sprite's outer edge.
+RIM_MULT = 1.25
+
+# Highlight down the single vertical seam where a box's right and left walls
+# meet (its nearest corner to the camera) — brighter than the edge rim.
+CORNER_MULT = 1.45
 
 # Transparent padding added around each frame's trimmed content.
 FRAME_PAD = 5
@@ -211,37 +247,66 @@ def post_process(color_arr: np.ndarray, face_arr: np.ndarray, boxid_arr: np.ndar
     H, W = face_arr.shape
     alpha = color_arr[:, :, 3]
     opaque = alpha > 0
-
-    # --- Highlight pass (only touches already-opaque pixels) ---
     opaque_pad = np.pad(opaque, 1, mode="constant", constant_values=False)
-    touches_background = np.zeros((H, W), dtype=bool)
+
+    def neighbor(arr: np.ndarray, dy: int, dx: int, fill):
+        out = np.full((H, W), fill, dtype=arr.dtype)
+        src_y0, src_y1 = max(0, dy), H + min(0, dy)
+        src_x0, src_x1 = max(0, dx), W + min(0, dx)
+        dst_y0, dst_y1 = max(0, -dy), H + min(0, -dy)
+        dst_x0, dst_x1 = max(0, -dx), W + min(0, -dx)
+        out[dst_y0:dst_y1, dst_x0:dst_x1] = arr[src_y0:src_y1, src_x0:src_x1]
+        return out
+
+    # --- Per-box edge rim: a 1px lighter line along each face's own
+    # boundary (not the whole sprite's silhouette), so every box reads as
+    # bevelled rather than a flat slab. Top face: all 4 edges — any
+    # neighbor that isn't this same box's top face (background, a
+    # different box's top, or this box's own side face below). Side
+    # faces: just the top edge — the crease directly below the top face.
+    is_top = face_arr == FACE_TOP
+    is_side = (face_arr == FACE_RIGHT) | (face_arr == FACE_LEFT)
+
+    top_boundary = np.zeros((H, W), dtype=bool)
     for dy in (-1, 0, 1):
         for dx in (-1, 0, 1):
             if dy == 0 and dx == 0:
                 continue
-            neigh = opaque_pad[1 + dy : 1 + dy + H, 1 + dx : 1 + dx + W]
-            touches_background |= ~neigh
+            neigh_face = neighbor(face_arr, dy, dx, -1)
+            neigh_boxid = neighbor(boxid_arr, dy, dx, -2)
+            differs = (neigh_face != FACE_TOP) | (neigh_boxid != boxid_arr)
+            top_boundary |= differs
+    top_rim = is_top & top_boundary
 
-    top_highlight = (face_arr == FACE_TOP) & touches_background
+    side_top_boundary = np.zeros((H, W), dtype=bool)
+    for dx in (-1, 0, 1):
+        neigh_face = neighbor(face_arr, -1, dx, -1)
+        side_top_boundary |= neigh_face == FACE_TOP
+    side_rim = is_side & side_top_boundary
 
-    right_neighbor_face = np.full((H, W), -1, dtype=face_arr.dtype)
-    right_neighbor_face[:, :-1] = face_arr[:, 1:]
-    right_neighbor_boxid = np.full((H, W), -2, dtype=boxid_arr.dtype)
-    right_neighbor_boxid[:, :-1] = boxid_arr[:, 1:]
+    rim_mask = top_rim | side_rim
+
+    # --- Vertical corner highlight: the seam where a box's right and left
+    # walls meet (its nearest vertical edge to the camera).
+    right_neighbor_face = neighbor(face_arr, 0, 1, -1)
+    right_neighbor_boxid = neighbor(boxid_arr, 0, 1, -2)
     corner_highlight = (
         (face_arr == FACE_RIGHT)
         & (right_neighbor_face == FACE_LEFT)
         & (boxid_arr == right_neighbor_boxid)
     )
 
-    highlight_mask = top_highlight | corner_highlight
     out = color_arr.copy()
-    if highlight_mask.any():
-        rgb = out[:, :, :3].astype(np.float32)
-        rgb[highlight_mask] = np.clip(rgb[highlight_mask] * HIGHLIGHT_MULT, 0, 255)
-        out[:, :, :3] = rgb.astype(np.uint8)
+    rgb = out[:, :, :3].astype(np.float32)
+    if rim_mask.any():
+        rgb[rim_mask] = np.clip(rgb[rim_mask] * RIM_MULT, 0, 255)
+    if corner_highlight.any():
+        rgb[corner_highlight] = np.clip(rgb[corner_highlight] * CORNER_MULT, 0, 255)
+    out[:, :, :3] = rgb.astype(np.uint8)
 
-    # --- Outline pass: 1px pure black silhouette, 8-neighbor dilation ---
+    # --- Outline pass: 1px pure black silhouette, 8-neighbor dilation.
+    # Only wraps the sprite's outer edge, not internal box-to-box seams
+    # (those get the rim treatment above instead).
     dilated = np.zeros((H, W), dtype=bool)
     for dy in (-1, 0, 1):
         for dx in (-1, 0, 1):
