@@ -151,3 +151,6 @@ vite.config.ts.timestamp-*
 
 # look harness output (screenshots, video, summary.json)
 look-output/
+
+# imagegen scripts' output (raw/cleaned reference images, review sheets)
+imagegen-output/
