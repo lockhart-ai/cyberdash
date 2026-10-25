@@ -12,8 +12,10 @@ const OUTLINE = [0x0b, 0x08, 0x08]; // near-black outline, matches the courier
 const MAX_COLORS = 24;
 
 // Orthographic view direction: horizontal (1,1)/sqrt(2) (from target toward camera),
-// elevation atan(0.5) => the game's 2:1 isometric ground.
-const VIEW_DIR = new THREE.Vector3(1, 1, 0.5).normalize();
+// elevation atan(0.5) => the game's 2:1 isometric ground. (Round 1 used (1,1,0.5),
+// which normalizes to elevation ~42°, not atan(0.5) ~26.6° — horizontal limbs
+// projected at ~53° and figures read as tilted. (1, 0.707, 1) is the true 2:1 angle.)
+const VIEW_DIR = new THREE.Vector3(1, Math.SQRT1_2, 1).normalize();
 
 let renderer, scene, camera, pivot, mixer, clipsByName;
 // Fixed framing per model (computed once from the loaded model's bounds) so all
@@ -35,8 +37,9 @@ function init() {
   scene = new THREE.Scene();
   camera = new THREE.OrthographicCamera(-1, 1, 1, -1, 0.1, 1000);
 
-  // 3-step gradient map for MeshToonMaterial, sampled with NearestFilter.
-  const steps = [100, 180, 255];
+  // 3-step gradient map for MeshToonMaterial, sampled with NearestFilter. Round 2:
+  // darker first step than round 1 ([100, 180, 255]) so the three tones read apart.
+  const steps = [80, 170, 255];
   const data = new Uint8Array(steps.length * 4);
   steps.forEach((v, i) => data.set([v, v, v, 255], i * 4));
   const gradientMap = new THREE.DataTexture(data, steps.length, 1);
@@ -70,7 +73,93 @@ function toonMaterial(src) {
   return mat;
 }
 
-async function load(url) {
+// Bind a separately-loaded skinned hair mesh to the body's skeleton. Both files share
+// the exact same 65 bone names (Quaternius rigs) and both armatures sit at identity,
+// so the hair's own inverse bind matrices stay valid when its bones are swapped for
+// the body's — matched by name, in the hair skeleton's order.
+async function attachHair(model, url) {
+  const hairGltf = await new GLTFLoader().loadAsync(url);
+  let hairMesh = null;
+  hairGltf.scene.traverse((obj) => {
+    if (!hairMesh && obj.isSkinnedMesh) hairMesh = obj;
+  });
+  if (!hairMesh) throw new Error(`no skinned mesh in hair file ${url}`);
+  let bodySkin = null;
+  model.traverse((obj) => {
+    if (!bodySkin && obj.isSkinnedMesh) bodySkin = obj;
+  });
+  if (!bodySkin) throw new Error("body model has no skinned mesh to bind hair to");
+  const bodyBones = new Map(bodySkin.skeleton.bones.map((b) => [b.name, b]));
+  const bones = hairMesh.skeleton.bones.map((b) => {
+    const match = bodyBones.get(b.name);
+    if (!match) throw new Error(`hair bone "${b.name}" has no match on the body skeleton`);
+    return match;
+  });
+  hairMesh.frustumCulled = false; // skinned bounds don't track the deformed shape
+  hairMesh.bind(new THREE.Skeleton(bones, hairMesh.skeleton.boneInverses), hairMesh.bindMatrix);
+  hairMesh.userData.isHair = true;
+  model.add(hairMesh);
+  return hairMesh;
+}
+
+// Turn a style recipe (styles.js) into vertex colours: every vertex of a skinned body
+// mesh takes the colour of the region its dominant (highest-weight) skinning bone maps
+// to. Eyes keep their texture; eyebrows and hair take flat recipe colours.
+function styleModel(model, recipe) {
+  const regionFor = (boneName) => {
+    for (const [prefix, region] of recipe.boneMap) {
+      if (boneName.startsWith(prefix)) return region;
+    }
+    return "skin";
+  };
+  model.traverse((obj) => {
+    if (!obj.isMesh) return;
+    if (obj.userData.isHair) {
+      obj.material = toonMaterial(obj.material);
+      obj.material.color.set(recipe.regions.hair);
+      obj.material.map = null;
+      return;
+    }
+    if (obj.name.startsWith("Eyebrows")) {
+      obj.material = toonMaterial(obj.material);
+      obj.material.color.set(recipe.eyebrowColor);
+      obj.material.map = null;
+      return;
+    }
+    if (obj.name === "Eyes") return; // keep the eye texture
+    if (!(obj.isSkinnedMesh && obj.geometry.attributes.skinIndex)) return;
+    const bones = obj.skeleton.bones;
+    const geo = obj.geometry;
+    const count = geo.attributes.position.count;
+    const colors = new Float32Array(count * 3);
+    const si = geo.attributes.skinIndex;
+    const sw = geo.attributes.skinWeight;
+    const c = new THREE.Color();
+    for (let i = 0; i < count; i++) {
+      let best = 0;
+      let bestW = -1;
+      for (let k = 0; k < 4; k++) {
+        const w = sw.getComponent(i, k);
+        if (w > bestW) {
+          bestW = w;
+          best = si.getComponent(i, k);
+        }
+      }
+      const region = regionFor(bones[best] ? bones[best].name : "");
+      c.set(recipe.regions[region] ?? recipe.regions.skin);
+      colors[i * 3] = c.r;
+      colors[i * 3 + 1] = c.g;
+      colors[i * 3 + 2] = c.b;
+    }
+    geo.setAttribute("color", new THREE.BufferAttribute(colors, 3));
+    const mat = toonMaterial(obj.material);
+    mat.vertexColors = true;
+    mat.map = null; // the skin texture would muddy the recipe colours
+    obj.material = mat;
+  });
+}
+
+async function load(url, opts = {}) {
   const gltf = await new GLTFLoader().loadAsync(url);
   const model = gltf.scene;
 
@@ -86,6 +175,10 @@ async function load(url) {
     }
   });
 
+  // Round 2: attach the hairstyle, then paint the style recipe onto the mesh.
+  if (opts.hairUrl) await attachHair(model, opts.hairUrl);
+  if (opts.recipe) styleModel(model, opts.recipe);
+
   // Centre the model's horizontal bounds on the pivot so rotation keeps it centred,
   // and stand it on y=0 so the camera framing can put the feet on FEET_ROW.
   const box = new THREE.Box3().setFromObject(model);
@@ -100,9 +193,19 @@ async function load(url) {
   pivot.add(model);
   pivot.rotation.y = 0;
 
+  // Round 2: the animation library is a separate glb; its clips share the same skeleton
+  // and bone names as the body, so the mixer plays them on the body directly.
+  let animations = gltf.animations;
+  let animSource = url;
+  if (opts.animUrl) {
+    const animGltf = await new GLTFLoader().loadAsync(opts.animUrl);
+    animations = animGltf.animations;
+    animSource = opts.animUrl;
+  }
+
   mixer = new THREE.AnimationMixer(model);
   clipsByName = new Map();
-  for (const clip of gltf.animations) {
+  for (const clip of animations) {
     if (!clipsByName.has(clip.name)) clipsByName.set(clip.name, clip);
   }
 
@@ -122,6 +225,7 @@ async function load(url) {
   return {
     clips: [...clipsByName.keys()],
     durations: Object.fromEntries([...clipsByName].map(([name, clip]) => [name, clip.duration])),
+    animSource,
     height,
     materialsReplaced: replaced,
   };
@@ -326,12 +430,17 @@ function renderFrame(clipName, t, yawDeg) {
 
 // Compose cells onto a canvas and return a PNG dataURL. cells: [{src, dx, dy, w, h}]
 // where src is a dataURL or a server URL. scale > 1 uses nearest-neighbour only.
-async function compose(cells, width, height, scale) {
+// bg (a CSS colour) fills the canvas first; without it the canvas stays transparent.
+async function compose(cells, width, height, scale, bg) {
   const canvas = document.createElement("canvas");
   canvas.width = width * scale;
   canvas.height = height * scale;
   const ctx = canvas.getContext("2d");
   ctx.imageSmoothingEnabled = false;
+  if (bg) {
+    ctx.fillStyle = bg;
+    ctx.fillRect(0, 0, canvas.width, canvas.height);
+  }
   for (const cell of cells) {
     const img = new Image();
     img.src = cell.src;
@@ -342,3 +451,15 @@ async function compose(cells, width, height, scale) {
 }
 
 window.__sprite3d = { init, load, calibrate, renderFrame, compose };
+
+// Debug hook: world positions of a few named bones (rest pose, after load()).
+window.__sprite3d.debugBones = (names) => {
+  const out = {};
+  scene.traverse((obj) => {
+    if (obj.isBone && names.includes(obj.name)) {
+      obj.updateWorldMatrix(true, false);
+      out[obj.name] = obj.getWorldPosition(new THREE.Vector3()).toArray().map((v) => +v.toFixed(3));
+    }
+  });
+  return out;
+};

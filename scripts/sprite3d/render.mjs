@@ -4,12 +4,13 @@
 // strips + review sheets to the round output directory.
 //
 // Usage: node scripts/sprite3d/render.mjs [--out <dir>]
-// Output default: sprite3d-output/round1 inside the repo (gitignored).
+// Output default: sprite3d-output/round2 inside the repo (gitignored).
 import { createServer } from "node:http";
 import { mkdir, readFile, stat, writeFile } from "node:fs/promises";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { chromium } from "playwright";
+import { RECIPES } from "./styles.js";
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..", "..");
 const PORT = 8137;
@@ -47,25 +48,28 @@ const YAW = {
   east: 315,
 };
 
-const CHARACTERS = [
-  {
-    key: "robot",
-    url: "/models/robot.glb",
-    source: "/tmp/sprite3d/RobotExpressive.glb",
-    clips: { idle: "Idle", walk: "Walking", run: "Running" },
-  },
-  {
-    key: "xbot",
-    url: "/models/xbot.glb",
-    source: "/tmp/sprite3d/Xbot.glb",
-    clips: { idle: "idle", walk: "walk", run: "run" },
-  },
-];
+// Round 2: the Quaternius base bodies + one Universal Animation Library, styled by
+// the recipes in styles.js. Same skeleton and bone names across body, hair and the
+// animation library, so the clips play on the body directly.
+const ANIM_LIBRARY = "/models2/UAL1_Standard.glb";
+const CLIPS = { idle: "Idle_Loop", walk: "Walk_Loop", run: "Jog_Fwd_Loop" };
+
+const CHARACTERS = Object.entries(RECIPES).map(([key, recipe]) => ({
+  key,
+  url: recipe.bodyUrl,
+  hairUrl: recipe.hairUrl,
+  recipe,
+  animUrl: ANIM_LIBRARY,
+}));
+
+// Where the driver's static server maps /models2/* — copies of the purchased packs
+// (assets are read-only; these were copied to /tmp unmodified).
+const MODELS2_ROOT = "/tmp/sprite3d/r2";
 
 const FRAMES = { idle: 1, walk: 6, run: 8 }; // frames per direction per animation
 
 function parseArgs(argv) {
-  const args = { out: path.join(ROOT, "sprite3d-output", "round1") };
+  const args = { out: path.join(ROOT, "sprite3d-output", "round2") };
   for (let i = 0; i < argv.length; i++) {
     if (argv[i] === "--out") args.out = path.resolve(argv[++i]);
     else throw new Error(`unknown argument ${argv[i]}`);
@@ -82,6 +86,8 @@ const MIME = {
   ".json": "application/json",
   ".png": "image/png",
   ".glb": "model/gltf-binary",
+  ".gltf": "model/gltf+json",
+  ".bin": "application/octet-stream",
 };
 
 async function startServer() {
@@ -100,6 +106,11 @@ async function startServer() {
         const character = CHARACTERS.find((c) => path.basename(c.url) === name);
         if (!character) throw new Error(`no model registered for ${name}`);
         file = character.source;
+      } else if (url.pathname.startsWith("/models2/")) {
+        // Copies of the purchased packs under /tmp (assets are read-only originals).
+        const rel = decodeURIComponent(url.pathname.slice("/models2/".length));
+        file = path.resolve(MODELS2_ROOT, rel);
+        if (!file.startsWith(MODELS2_ROOT + "/")) throw new Error(`bad models2 path ${url.pathname}`);
       }
       if (!file || !(await stat(file).then((s) => s.isFile()).catch(() => false))) {
         throw new Error(`not found: ${req.url}`);
@@ -135,22 +146,24 @@ function pickClip(clips, wanted, characterKey, role) {
   );
 }
 
-async function renderCharacter(page, character, outDir, courierUrl) {
+// Renders every frame for one styled character. Returns { frames, info } so main can
+// compose the combined courier-vs-punk-vs-corporate review sheets afterwards.
+async function renderCharacter(page, character, outDir) {
   await page.goto(PAGE_URL);
-  const info = await page.evaluate(async (url) => {
+  const info = await page.evaluate(async (opts) => {
     const api = window.__sprite3d;
     api.init();
-    return api.load(url);
-  }, character.url);
+    return api.load(opts.url, { hairUrl: opts.hairUrl, recipe: opts.recipe, animUrl: opts.animUrl });
+  }, { url: character.url, hairUrl: character.hairUrl, recipe: character.recipe, animUrl: character.animUrl });
   console.log(`[${character.key}] clips: ${info.clips.join(", ")}`);
   console.log(
-    `[${character.key}] model height ${info.height.toFixed(2)} units, ${info.materialsReplaced} materials made toon`,
+    `[${character.key}] model height ${info.height.toFixed(2)} units, ${info.materialsReplaced} materials made toon, anims from ${info.animSource}`,
   );
 
   const chosen = {
-    idle: pickClip(info.clips, character.clips.idle, character.key, "idle"),
-    walk: pickClip(info.clips, character.clips.walk, character.key, "walk"),
-    run: pickClip(info.clips, character.clips.run, character.key, "run"),
+    idle: pickClip(info.clips, CLIPS.idle, character.key, "idle"),
+    walk: pickClip(info.clips, CLIPS.walk, character.key, "walk"),
+    run: pickClip(info.clips, CLIPS.run, character.key, "run"),
   };
   console.log(`[${character.key}] using clips: ${JSON.stringify(chosen)}`);
 
@@ -196,63 +209,66 @@ async function renderCharacter(page, character, outDir, courierUrl) {
     }
   }
   console.log(`[${character.key}] wrote 24 strips to ${charDir}`);
+  return { frames, page, outDir };
+}
 
-  // Review sheet (a): courier idle row above the rendered idle row, 2x nearest.
-  const courierCells = [];
-  const renderedCells = [];
-  DIRS.forEach((dir, i) => {
-    courierCells.push({ src: `${courierUrl}/${dir}.png`, dx: i * 64, dy: 0, w: 64, h: 64 });
-    renderedCells.push({ src: frames.idle[dir][0], dx: i * 64, dy: 64, w: 64, h: 64 });
-  });
-  const sheetA = await page.evaluate(
-    async ({ courierCells, renderedCells, w, h, scale }) =>
-      window.__sprite3d.compose([...courierCells, ...renderedCells], w, h, scale),
-    { courierCells, renderedCells, w: 512, h: 128, scale: 2 },
-  );
-  await savePng(sheetA, path.join(outDir, `${character.key}-sheet-a-idle.png`));
+// Row of 8 idle cells (64px each) for a rendered character or the courier reference.
+function idleRow(framesOrNull, courierUrl) {
+  return DIRS.map((dir, i) => ({
+    src: framesOrNull ? framesOrNull.idle[dir][0] : `${courierUrl}/${dir}.png`,
+    dx: i * 64,
+    dy: 0,
+    w: 64,
+    h: 64,
+  }));
+}
 
-  // Review sheet (b): courier south-east walk/run above the rendered walk/run, 2x nearest.
-  const seWalkCourier = { src: `${courierUrl}/walk-south-east.png`, dx: 0, dy: 0, w: 384, h: 64 };
-  const cellsB = [
-    seWalkCourier,
-    {
-      src: await page.evaluate(
-        ({ cells, w, h, scale }) => window.__sprite3d.compose(cells, w, h, scale),
-        {
-          cells: frames.walk["south-east"].map((src, i) => ({ src, dx: i * 64, dy: 0, w: 64, h: 64 })),
-          w: 384,
-          h: 64,
-          scale: 1,
-        },
-      ),
-      dx: 0,
-      dy: 64,
-      w: 384,
-      h: 64,
-    },
-    { src: `${courierUrl}/run-south-east.png`, dx: 0, dy: 128, w: 512, h: 64 },
-    {
-      src: await page.evaluate(
-        ({ cells, w, h, scale }) => window.__sprite3d.compose(cells, w, h, scale),
-        {
-          cells: frames.run["south-east"].map((src, i) => ({ src, dx: i * 64, dy: 0, w: 64, h: 64 })),
-          w: 512,
-          h: 64,
-          scale: 1,
-        },
-      ),
-      dx: 0,
-      dy: 192,
-      w: 512,
-      h: 64,
-    },
+// South-east walk/run strip for the courier reference pngs (rendered strips are
+// composed inline in composeSheetB, per character).
+function courierAnimRow(anim, courierUrl, count) {
+  return [{ src: `${courierUrl}/${anim}-south-east.png`, dx: 0, dy: 0, w: count * 64, h: 64 }];
+}
+
+// Review sheet (a): courier idle row, then punk, then corporate — 8 directions each.
+async function composeSheetA(page, rendered, courierUrl) {
+  const rows = [
+    { label: "courier", row: idleRow(null, courierUrl) },
+    ...rendered.map((r) => ({ label: r.key, row: idleRow(r.frames, courierUrl) })),
   ];
-  const sheetB = await page.evaluate(
-    ({ cells, w, h, scale }) => window.__sprite3d.compose(cells, w, h, scale),
-    { cells: cellsB, w: 512, h: 256, scale: 2 },
+  const cells = rows.flatMap((r, i) => r.row.map((c) => ({ ...c, dy: i * 64 })));
+  const sheet = await page.evaluate(
+    async ({ cells, w, h, scale, bg }) => window.__sprite3d.compose(cells, w, h, scale, bg),
+    { cells, w: 512, h: rows.length * 64, scale: 3, bg: "#808080" },
   );
-  await savePng(sheetB, path.join(outDir, `${character.key}-sheet-b-se-walk-run.png`));
-  console.log(`[${character.key}] wrote review sheets a and b to ${outDir}`);
+  return sheet;
+}
+
+// Review sheet (b): south-east walk and run, courier row then punk then corporate.
+async function composeSheetB(page, rendered, courierUrl) {
+  const rows = [];
+  for (const anim of ["walk", "run"]) {
+    const count = FRAMES[anim];
+    rows.push({ label: `courier ${anim}`, row: courierAnimRow(anim, courierUrl, count) });
+    for (const r of rendered) {
+      const strip = await page.evaluate(
+        ({ cells, w, h, scale }) => window.__sprite3d.compose(cells, w, h, scale),
+        {
+          cells: r.frames[anim]["south-east"].map((src, i) => ({ src, dx: i * 64, dy: 0, w: 64, h: 64 })),
+          w: count * 64,
+          h: 64,
+          scale: 1,
+        },
+      );
+      rows.push({ label: `${r.key} ${anim}`, row: [{ src: strip, dx: 0, dy: 0, w: count * 64, h: 64 }] });
+    }
+  }
+  const cells = [];
+  rows.forEach((r, i) => r.row.forEach((c) => cells.push({ ...c, dy: i * 64 })));
+  const sheet = await page.evaluate(
+    async ({ cells, w, h, scale, bg }) => window.__sprite3d.compose(cells, w, h, scale, bg),
+    { cells, w: 512, h: rows.length * 64, scale: 3, bg: "#808080" },
+  );
+  return sheet;
 }
 
 async function main() {
@@ -269,9 +285,18 @@ async function main() {
     page.on("console", (msg) => {
       if (msg.type() === "error" || msg.type() === "warning") console.error(`[page:${msg.type()}] ${msg.text()}`);
     });
+    const rendered = [];
     for (const character of CHARACTERS) {
-      await renderCharacter(page, character, args.out, `${SERVER_URL}/courier`);
+      rendered.push(await renderCharacter(page, character, args.out));
     }
+    // Combined review sheets: courier reference row above the rendered characters,
+    // mid-grey background, 3x nearest-neighbour enlargement.
+    const courierUrl = `${SERVER_URL}/courier`;
+    const sheetA = await composeSheetA(page, rendered, courierUrl);
+    await savePng(sheetA, path.join(args.out, "round2-sheet-a-idle.png"));
+    const sheetB = await composeSheetB(page, rendered, courierUrl);
+    await savePng(sheetB, path.join(args.out, "round2-sheet-b-se-walk-run.png"));
+    console.log(`wrote review sheets a and b to ${args.out}`);
   } finally {
     await browser.close();
     server.close();
