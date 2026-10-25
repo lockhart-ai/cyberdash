@@ -9,6 +9,9 @@
 /asset_packs/
 public/asset_packs
 
+# Voxel renderer review output (comparison sheets etc.), lives outside the repo
+voxel-output/
+
 # Logs
 logs
 *.log
