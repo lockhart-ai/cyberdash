@@ -18,6 +18,7 @@
   "devDependencies": {
     "@biomejs/biome": "^2.4.6",
     "playwright": "^1.64.1",
+    "three": "^0.186.1",
     "typescript": "^5.9.3",
     "vite": "^7.3.1"
   }

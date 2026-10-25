@@ -151,3 +151,6 @@ vite.config.ts.timestamp-*
 
 # look harness output (screenshots, video, summary.json)
 look-output/
+
+# sprite3d prototype renders (issue #15)
+sprite3d-output/
