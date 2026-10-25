@@ -157,3 +157,6 @@ look-output/
 
 # imagegen scripts' output (raw/cleaned reference images, review sheets)
 imagegen-output/
+
+# structured-asset-prototype output (concept/voxel comparison sheets), lives outside the repo
+structured-output/
