@@ -86,10 +86,15 @@ const MODELS2_ROOT = "/tmp/sprite3d/r2";
 const FRAMES = { idle: 1, walk: 6, run: 8 }; // frames per direction per animation
 
 function parseArgs(argv) {
-  const args = { out: path.join(ROOT, "sprite3d-output", "round3") };
+  const args = { out: path.join(ROOT, "sprite3d-output", "round3"), characters: null };
   for (let i = 0; i < argv.length; i++) {
     if (argv[i] === "--out") args.out = path.resolve(argv[++i]);
-    else throw new Error(`unknown argument ${argv[i]}`);
+    // Round 4 (#16): render only a subset of RECIPES' keys (e.g. a single new
+    // recipe being iterated on), instead of every character every time.
+    else if (argv[i] === "--characters") {
+      args.characters = [];
+      while (argv[i + 1] && !argv[i + 1].startsWith("--")) args.characters.push(argv[++i]);
+    } else throw new Error(`unknown argument ${argv[i]}`);
   }
   return args;
 }
@@ -424,8 +429,15 @@ async function main() {
       if (msg.type() === "error" || msg.type() === "warning")
         console.error(`[page:${msg.type()}] ${msg.text()}`);
     });
+    const characters = args.characters
+      ? CHARACTERS.filter((c) => args.characters.includes(c.key))
+      : CHARACTERS;
+    if (args.characters && characters.length !== args.characters.length) {
+      const missing = args.characters.filter((k) => !characters.some((c) => c.key === k));
+      throw new Error(`--characters: no recipe named ${missing.join(", ")} (have: ${CHARACTERS.map((c) => c.key).join(", ")})`);
+    }
     const rendered = [];
-    for (const character of CHARACTERS) {
+    for (const character of characters) {
       rendered.push(await renderCharacter(page, character, args.out));
     }
     // Combined review sheets: courier reference row above the rendered characters,
