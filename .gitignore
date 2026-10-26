@@ -154,3 +154,9 @@ look-output/
 
 # sprite3d prototype renders (issue #15)
 sprite3d-output/
+
+# imagegen scripts' output (raw/cleaned reference images, review sheets)
+imagegen-output/
+
+# skin prototype renders (issue #16)
+skin-output/
