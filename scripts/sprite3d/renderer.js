@@ -34,6 +34,19 @@ const HEAD_SCALE = 1.8;
 // minor, acceptable thinning as a side effect — simpler and safer than guessing an axis.
 const LEG_SCALE = 0.88;
 
+// Round 4 (#16) stance/arm touch-up: the Idle_Loop clip's bind stance holds the
+// feet noticeably apart and the hands away from the torso (checked by eye on
+// the round-3 renders, where the south-east idle shows a visible gap between
+// forearm and body). Applied as a small extra local rotateZ on each
+// thigh/upperarm bone, after the mixer sets the clip's pose and the chibi
+// scale above — same "extra bone tweak after the mixer" pattern as
+// HEAD_SCALE/LEG_SCALE. rotateZ (not X or Y) was the axis that visibly
+// adducted the limb toward the midline without twisting it, found by trying
+// each local axis on this rig and rendering; sign is mirrored per side so
+// both legs/arms rotate toward the centre, not the same way in world space.
+const STANCE_IN_ROT = 0.1; // radians, thighs rotated toward the midline
+const ARM_IN_ROT = 0.07; // radians, upper arms rotated toward the torso
+
 // Round 3 face post-pass: eye/glasses placement in world units above the Head bone
 // (which sits at the jaw, not moved by scaling it — see setPose) and forward of it
 // (toward the nose), tuned against the courier's glasses row (south.png row 18 of 46,
@@ -100,7 +113,17 @@ function init() {
   const key = new THREE.DirectionalLight(0xffffff, 1.4);
   key.position.set(2, -2, 3);
   scene.add(key);
-  scene.add(new THREE.AmbientLight(0xffffff, 0.55));
+  // Round 4 (#16): faces/skin were landing in the gradient map's darkest step
+  // (steps[0] = 80) on the operative/corporate dark-clothed recipes, reading
+  // almost black — raised ambient a touch, plus a weak fill light from the
+  // camera's own direction (VIEW_DIR) so the surfaces actually facing the
+  // viewer (the face, on south/south-east/south-west) pick up a lighter
+  // gradient step without flattening the side/back shading the key light
+  // still provides.
+  scene.add(new THREE.AmbientLight(0xffffff, 0.7));
+  const fill = new THREE.DirectionalLight(0xffffff, 0.5);
+  fill.position.copy(VIEW_DIR);
+  scene.add(fill);
 
   pivot = new THREE.Group();
   scene.add(pivot);
@@ -315,10 +338,14 @@ async function load(url, opts = {}) {
   // Round 3 (#15): bones scaled every frame for chibi proportions (see setPose) and
   // the recipe used by the face post-pass (see renderFrame). Same rig for every body
   // (male and female share bone names), so these must exist — fail loudly if not.
-  chibiBones = { head: null, legs: [] };
+  chibiBones = { head: null, legs: [], thighL: null, thighR: null, upperArmL: null, upperArmR: null };
   model.traverse((obj) => {
     if (!obj.isBone) return;
     if (obj.name === "Head") chibiBones.head = obj;
+    if (obj.name === "thigh_l") chibiBones.thighL = obj;
+    if (obj.name === "thigh_r") chibiBones.thighR = obj;
+    if (obj.name === "upperarm_l") chibiBones.upperArmL = obj;
+    if (obj.name === "upperarm_r") chibiBones.upperArmR = obj;
     if (
       obj.name === "thigh_l" ||
       obj.name === "thigh_r" ||
@@ -328,9 +355,16 @@ async function load(url, opts = {}) {
       chibiBones.legs.push(obj);
     }
   });
-  if (!chibiBones.head || chibiBones.legs.length !== 4) {
+  if (
+    !chibiBones.head ||
+    chibiBones.legs.length !== 4 ||
+    !chibiBones.thighL ||
+    !chibiBones.thighR ||
+    !chibiBones.upperArmL ||
+    !chibiBones.upperArmR
+  ) {
     throw new Error(
-      `chibi bone scaling needs Head + thigh/calf l/r; found head=${!!chibiBones.head} legs=${chibiBones.legs.length}`,
+      `chibi bone scaling needs Head + thigh/calf l/r + upperarm l/r; found head=${!!chibiBones.head} legs=${chibiBones.legs.length} thighL=${!!chibiBones.thighL} thighR=${!!chibiBones.thighR} upperArmL=${!!chibiBones.upperArmL} upperArmR=${!!chibiBones.upperArmR}`,
     );
   }
   currentRecipe = opts.recipe ?? null;
@@ -390,6 +424,13 @@ function setPose(clipName, t, yawDeg) {
   // the animation (which doesn't touch bone scale) never overwrites it.
   chibiBones.head.scale.setScalar(HEAD_SCALE);
   for (const bone of chibiBones.legs) bone.scale.setScalar(LEG_SCALE);
+  // Round 4 (#16): narrow the idle stance and bring the arms in (see
+  // STANCE_IN_ROT/ARM_IN_ROT above). rotateZ composes on top of whatever
+  // quaternion the mixer just set, same as a chained local rotation.
+  chibiBones.thighL.rotateZ(STANCE_IN_ROT);
+  chibiBones.thighR.rotateZ(-STANCE_IN_ROT);
+  chibiBones.upperArmL.rotateZ(-ARM_IN_ROT);
+  chibiBones.upperArmR.rotateZ(ARM_IN_ROT);
   pivot.rotation.y = (yawDeg * Math.PI) / 180;
 }
 
